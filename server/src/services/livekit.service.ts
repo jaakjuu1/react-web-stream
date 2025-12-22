@@ -1,4 +1,4 @@
-import { AccessToken, VideoGrant } from 'livekit-server-sdk';
+import { AccessToken, VideoGrant, TrackSource } from 'livekit-server-sdk';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
@@ -32,8 +32,8 @@ export async function generateLiveKitToken(options: TokenOptions): Promise<strin
     room: roomName,
     roomJoin: true,
     canPublishSources: role === 'camera'
-      ? ['camera', 'microphone']
-      : ['microphone'], // Viewers can only publish audio (for talking to pet)
+      ? [TrackSource.CAMERA, TrackSource.MICROPHONE]
+      : [TrackSource.MICROPHONE], // Viewers can only publish audio (for talking to pet)
     canSubscribe: true, // Both roles can subscribe
     canPublishData: true,
   };
