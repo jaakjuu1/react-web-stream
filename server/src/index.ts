@@ -8,6 +8,16 @@ import { devicesRouter } from './routes/devices.js';
 import { tokensRouter } from './routes/tokens.js';
 import { pairingRouter } from './routes/pairing.js';
 
+// Catch crashes
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -49,11 +59,22 @@ app.use('/api', (err: Error, req: express.Request, res: express.Response, next: 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   const publicPath = path.join(__dirname, '..', 'public');
+  console.log('Production mode - serving static files from:', publicPath);
+
+  // Check if public directory exists
+  import('fs').then(fs => {
+    if (fs.existsSync(publicPath)) {
+      console.log('Public directory exists');
+      console.log('Contents:', fs.readdirSync(publicPath));
+    } else {
+      console.error('ERROR: Public directory does not exist!');
+    }
+  });
 
   app.use(express.static(publicPath));
 
   // SPA fallback - serve index.html for all non-API routes (Express 5 syntax)
-  app.get('{*splat}', (req, res) => {
+  app.get('/{*splat}', (req, res) => {
     res.sendFile(path.join(publicPath, 'index.html'));
   });
 }
