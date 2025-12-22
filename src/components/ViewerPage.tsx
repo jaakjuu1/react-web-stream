@@ -234,8 +234,9 @@ function ViewerInterface() {
         onMouseDown={startTalking}
         onMouseUp={stopTalking}
         onMouseLeave={stopTalking}
-        onTouchStart={startTalking}
-        onTouchEnd={stopTalking}
+        onTouchStart={(e) => { e.preventDefault(); startTalking(); }}
+        onTouchEnd={(e) => { e.preventDefault(); stopTalking(); }}
+        onContextMenu={(e) => e.preventDefault()}
         title="Hold to talk"
       >
         <span className="ptt-icon">{isTalking ? '🎙️' : '🎤'}</span>
