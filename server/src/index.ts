@@ -45,8 +45,8 @@ if (process.env.NODE_ENV === 'production') {
 
   app.use(express.static(publicPath));
 
-  // SPA fallback - serve index.html for all non-API routes
-  app.get('*', (req, res) => {
+  // SPA fallback - serve index.html for all non-API routes (Express 5 syntax)
+  app.get('{*splat}', (req, res) => {
     res.sendFile(path.join(publicPath, 'index.html'));
   });
 }
