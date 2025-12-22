@@ -1,16 +1,5 @@
 import { VideoPresets, type RoomOptions } from 'livekit-client';
 
-export const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL;
-
-// Default room name for the shared demo room
-export const DEFAULT_ROOM_NAME = 'demo-room';
-
-// Generate a random participant ID
-export function generateParticipantId(prefix: string): string {
-  const randomId = Math.random().toString(36).substring(2, 8);
-  return `${prefix}_${randomId}`;
-}
-
 // Room options for camera (publisher)
 export const cameraRoomOptions: RoomOptions = {
   adaptiveStream: false, // Camera doesn't need adaptive stream (it's publishing)

@@ -7,44 +7,39 @@ import {
   useRoomContext,
 } from '@livekit/components-react';
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
-import { generateToken } from '../lib/token';
-import {
-  LIVEKIT_URL,
-  DEFAULT_ROOM_NAME,
-  generateParticipantId,
-  cameraRoomOptions,
-} from '../lib/livekit';
+import { api } from '../lib/api';
+import { cameraRoomOptions } from '../lib/livekit';
 
 export function CameraPage() {
   const [token, setToken] = useState<string | null>(null);
+  const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [participantName] = useState(() => generateParticipantId('cam'));
 
   useEffect(() => {
-    generateToken({
-      roomName: DEFAULT_ROOM_NAME,
-      participantName,
-      role: 'camera',
-    })
-      .then(setToken)
+    // Use demo endpoint for now (no auth required)
+    api.getDemoCameraToken()
+      .then((response) => {
+        setToken(response.token);
+        setLivekitUrl(response.livekitUrl);
+      })
       .catch((err) => setError(err.message));
-  }, [participantName]);
+  }, []);
 
   if (error) {
     return (
       <div className="camera-page">
         <div className="error-container">
-          <h2>Configuration Error</h2>
+          <h2>Connection Error</h2>
           <p>{error}</p>
           <p className="hint">
-            Make sure to create a .env file with your LiveKit credentials.
+            Make sure the backend server is running on port 3001.
           </p>
         </div>
       </div>
     );
   }
 
-  if (!token) {
+  if (!token || !livekitUrl) {
     return (
       <div className="camera-page">
         <div className="loading">Connecting...</div>
@@ -55,7 +50,7 @@ export function CameraPage() {
   return (
     <div className="camera-page">
       <LiveKitRoom
-        serverUrl={LIVEKIT_URL}
+        serverUrl={livekitUrl}
         token={token}
         connect={true}
         video={true}

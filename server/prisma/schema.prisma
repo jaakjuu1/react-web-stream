@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  rooms             Room[]
+  devices           Device[]
+  pushSubscriptions PushSubscription[]
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  livekitRoom String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  devices      Device[]
+  recordings   Recording[]
+  motionEvents MotionEvent[]
+  pairingCodes PairingCode[]
+
+  @@index([userId])
+}
+
+model Device {
+  id            String    @id @default(cuid())
+  name          String
+  deviceType    String    @default("mobile")
+  participantId String    @unique
+  lastSeen      DateTime?
+  isOnline      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  roomId String?
+  room   Room?   @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([roomId])
+}
+
+model PairingCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  userId String
+
+  @@index([code])
+}
+
+model Recording {
+  id          String    @id @default(cuid())
+  filename    String
+  fileSize    BigInt?
+  duration    Int?
+  startedAt   DateTime
+  endedAt     DateTime?
+  status      String    @default("recording")
+  storageType String    @default("local")
+  storagePath String
+  egressId    String?
+
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([roomId])
+  @@index([startedAt])
+}
+
+model MotionEvent {
+  id               String   @id @default(cuid())
+  timestamp        DateTime @default(now())
+  deviceId         String
+  confidence       Float?
+  thumbnailPath    String?
+  notificationSent Boolean  @default(false)
+
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([timestamp])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

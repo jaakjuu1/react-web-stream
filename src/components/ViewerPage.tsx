@@ -6,45 +6,40 @@ import {
   useParticipants,
 } from '@livekit/components-react';
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
-import { generateToken } from '../lib/token';
-import {
-  LIVEKIT_URL,
-  DEFAULT_ROOM_NAME,
-  generateParticipantId,
-  viewerRoomOptions,
-} from '../lib/livekit';
+import { api } from '../lib/api';
+import { viewerRoomOptions } from '../lib/livekit';
 import { VideoTile } from './VideoTile';
 
 export function ViewerPage() {
   const [token, setToken] = useState<string | null>(null);
+  const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [participantName] = useState(() => generateParticipantId('viewer'));
 
   useEffect(() => {
-    generateToken({
-      roomName: DEFAULT_ROOM_NAME,
-      participantName,
-      role: 'viewer',
-    })
-      .then(setToken)
+    // Use demo endpoint for now (no auth required)
+    api.getDemoViewerToken()
+      .then((response) => {
+        setToken(response.token);
+        setLivekitUrl(response.livekitUrl);
+      })
       .catch((err) => setError(err.message));
-  }, [participantName]);
+  }, []);
 
   if (error) {
     return (
       <div className="viewer-page">
         <div className="error-container">
-          <h2>Configuration Error</h2>
+          <h2>Connection Error</h2>
           <p>{error}</p>
           <p className="hint">
-            Make sure to create a .env file with your LiveKit credentials.
+            Make sure the backend server is running on port 3001.
           </p>
         </div>
       </div>
     );
   }
 
-  if (!token) {
+  if (!token || !livekitUrl) {
     return (
       <div className="viewer-page">
         <div className="loading">Connecting...</div>
@@ -55,7 +50,7 @@ export function ViewerPage() {
   return (
     <div className="viewer-page">
       <LiveKitRoom
-        serverUrl={LIVEKIT_URL}
+        serverUrl={livekitUrl}
         token={token}
         connect={true}
         video={false}

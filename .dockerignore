@@ -1,0 +1,41 @@
+# Dependencies
+node_modules
+server/node_modules
+
+# Build outputs
+dist
+server/dist
+
+# Environment files
+.env
+.env.*
+.env.local
+server/.env
+
+# Database
+server/prisma/*.db
+server/prisma/*.db-journal
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.sw?
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Documentation
+README.md
+CLAUDE.md
+*.md
+
+# CI/CD (not needed in image)
+.github
