@@ -80,6 +80,35 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const HOST = process.env.HOST || '0.0.0.0';
-app.listen(Number(PORT), HOST, () => {
+
+const server = app.listen(Number(PORT), HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT}`);
+  console.log('Server is listening, PID:', process.pid);
+
+  // Heartbeat to show server is alive
+  setInterval(() => {
+    console.log('Heartbeat - server still running at', new Date().toISOString());
+  }, 5000);
+});
+
+server.on('error', (err) => {
+  console.error('SERVER ERROR:', err);
+});
+
+server.on('close', () => {
+  console.log('SERVER CLOSED');
+});
+
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT');
+  process.exit(0);
+});
+
+process.on('exit', (code) => {
+  console.log('Process exiting with code:', code);
 });
