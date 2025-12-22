@@ -52,9 +52,9 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copy server package files and install production dependencies
+# Copy server package files and install ALL dependencies (need prisma CLI for migrations)
 COPY server/package.json server/package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Copy Prisma schema and migrations, then generate client
 COPY server/prisma ./prisma
