@@ -23,7 +23,14 @@ app.use(express.json());
 
 // Health check
 app.get('/health', (req, res) => {
+  console.log('Health check hit from:', req.ip);
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Debug: log all incoming requests
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} from ${req.ip}`);
+  next();
 });
 
 // Routes
