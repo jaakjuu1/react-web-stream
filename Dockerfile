@@ -81,9 +81,9 @@ ENV DATABASE_URL="file:/app/data/prod.db"
 # Expose port
 EXPOSE 3737
 
-# Health check
+# Health check using node instead of wget (wget has issues on Alpine)
 HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3737/health || exit 1
+  CMD node -e "fetch('http://localhost:3737/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "dist/index.js"]
