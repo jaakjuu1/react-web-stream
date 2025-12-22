@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   LiveKitRoom,
   useTracks,
   useRoomContext,
   useParticipants,
+  useLocalParticipant,
 } from '@livekit/components-react';
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import { api } from '../lib/api';
@@ -54,7 +55,7 @@ export function ViewerPage() {
         token={token}
         connect={true}
         video={false}
-        audio={false}
+        audio={true}
         options={viewerRoomOptions}
       >
         <ViewerInterface />
@@ -66,6 +67,7 @@ export function ViewerPage() {
 function ViewerInterface() {
   const room = useRoomContext();
   const participants = useParticipants();
+  const { localParticipant } = useLocalParticipant();
   const [connectionState, setConnectionState] = useState<ConnectionState>(
     ConnectionState.Connecting
   );
@@ -77,6 +79,30 @@ function ViewerInterface() {
   );
   // Portrait mode - rotates all feeds 90° for 9:16 phone cameras
   const [portraitMode, setPortraitMode] = useState(false);
+  // Push-to-talk state
+  const [isTalking, setIsTalking] = useState(false);
+
+  // Disable microphone on mount (start silent)
+  useEffect(() => {
+    if (localParticipant) {
+      localParticipant.setMicrophoneEnabled(false);
+    }
+  }, [localParticipant]);
+
+  // Push-to-talk handlers
+  const startTalking = useCallback(async () => {
+    if (localParticipant) {
+      await localParticipant.setMicrophoneEnabled(true);
+      setIsTalking(true);
+    }
+  }, [localParticipant]);
+
+  const stopTalking = useCallback(async () => {
+    if (localParticipant) {
+      await localParticipant.setMicrophoneEnabled(false);
+      setIsTalking(false);
+    }
+  }, [localParticipant]);
 
   // Get all camera tracks from remote participants
   const tracks = useTracks([Track.Source.Camera, Track.Source.Microphone], {
@@ -201,6 +227,20 @@ function ViewerInterface() {
           ))
         )}
       </div>
+
+      {/* Push-to-talk button */}
+      <button
+        className={`push-to-talk-btn ${isTalking ? 'talking' : ''}`}
+        onMouseDown={startTalking}
+        onMouseUp={stopTalking}
+        onMouseLeave={stopTalking}
+        onTouchStart={startTalking}
+        onTouchEnd={stopTalking}
+        title="Hold to talk"
+      >
+        <span className="ptt-icon">{isTalking ? '🎙️' : '🎤'}</span>
+        <span className="ptt-label">{isTalking ? 'Speaking...' : 'Hold to talk'}</span>
+      </button>
     </div>
   );
 }

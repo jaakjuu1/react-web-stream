@@ -4,6 +4,7 @@ import {
   useLocalParticipant,
   useTracks,
   VideoTrack,
+  AudioTrack,
   useRoomContext,
 } from '@livekit/components-react';
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
@@ -74,15 +75,31 @@ function CameraInterface() {
   );
   const [isSwitching, setIsSwitching] = useState(false);
 
-  const tracks = useTracks([Track.Source.Camera], {
+  // Local camera track for preview
+  const videoTracks = useTracks([Track.Source.Camera], {
     onlySubscribed: false,
   });
 
-  const localVideoTrack = tracks.find(
+  // Subscribe to viewer audio tracks (for two-way communication)
+  const audioTracks = useTracks([Track.Source.Microphone], {
+    onlySubscribed: true,
+  });
+
+  const localVideoTrack = videoTracks.find(
     (t) =>
       t.participant.identity === localParticipant?.identity &&
       t.source === Track.Source.Camera
   );
+
+  // Get audio tracks from viewers (participants starting with "viewer_")
+  const viewerAudioTracks = audioTracks.filter(
+    (t) =>
+      t.participant.identity.startsWith('viewer_') &&
+      t.source === Track.Source.Microphone
+  );
+
+  // Check if any viewer is currently speaking
+  const viewerIsSpeaking = viewerAudioTracks.length > 0;
 
   useEffect(() => {
     const handleConnectionChange = (state: ConnectionState) => {
@@ -191,6 +208,19 @@ function CameraInterface() {
           {facingMode === 'user' ? 'Front' : 'Back'}
         </span>
       </div>
+
+      {/* Viewer speaking indicator */}
+      {viewerIsSpeaking && (
+        <div className="viewer-speaking-indicator">
+          <span className="speaking-icon">🔊</span>
+          <span>Viewer speaking...</span>
+        </div>
+      )}
+
+      {/* Render audio tracks from viewers (hidden, just for playback) */}
+      {viewerAudioTracks.map((track) => (
+        <AudioTrack key={track.participant.identity} trackRef={track} />
+      ))}
     </div>
   );
 }

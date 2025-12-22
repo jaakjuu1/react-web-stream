@@ -1400,3 +1400,107 @@ body {
 .lk-video-track {
   border-radius: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PUSH-TO-TALK BUTTON
+   ═══════════════════════════════════════════════════════════ */
+
+.push-to-talk-btn {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  background: var(--glass-strong);
+  backdrop-filter: blur(20px);
+  border: 2px solid var(--border-strong);
+  border-radius: 100px;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 100;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.push-to-talk-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+  box-shadow: 0 0 30px var(--accent-glow);
+}
+
+.push-to-talk-btn:active,
+.push-to-talk-btn.talking {
+  background: var(--live);
+  border-color: var(--live);
+  color: white;
+  transform: translateX(-50%) scale(1.05);
+  box-shadow: 0 0 40px var(--live-glow);
+}
+
+.push-to-talk-btn.talking .ptt-icon {
+  animation: talkingPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes talkingPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.ptt-icon {
+  font-size: 1.5rem;
+}
+
+.ptt-label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VIEWER SPEAKING INDICATOR (Camera Page)
+   ═══════════════════════════════════════════════════════════ */
+
+.viewer-speaking-indicator {
+  position: absolute;
+  bottom: 7rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--live);
+  border-radius: 100px;
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 30px var(--live-glow);
+  animation: speakingSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+}
+
+@keyframes speakingSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.speaking-icon {
+  font-size: 1.25rem;
+  animation: talkingPulse 0.5s ease-in-out infinite;
+}

@@ -26,11 +26,15 @@ export async function generateLiveKitToken(options: TokenOptions): Promise<strin
     ttl: '24h',
   });
 
+  // Two-way audio: cameras publish video+audio, viewers publish audio only
+  // Both roles can subscribe to hear each other
   const grant: VideoGrant = {
     room: roomName,
     roomJoin: true,
-    canPublish: role === 'camera',
-    canSubscribe: role === 'viewer',
+    canPublishSources: role === 'camera'
+      ? ['camera', 'microphone']
+      : ['microphone'], // Viewers can only publish audio (for talking to pet)
+    canSubscribe: true, // Both roles can subscribe
     canPublishData: true,
   };
 
