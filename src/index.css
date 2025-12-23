@@ -1507,3 +1507,87 @@ body {
   font-size: 1.25rem;
   animation: talkingPulse 0.5s ease-in-out infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   SLEEP MODE - Battery Saver Overlay
+   ═══════════════════════════════════════════════════════════ */
+
+.sleep-btn {
+  background: var(--bg-tertiary);
+  border-color: var(--border-strong);
+}
+
+.sleep-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.sleep-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  /* Prevent any interaction issues */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Tiny dot showing it's still streaming */
+.sleep-streaming-dot {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+  opacity: 0.6;
+  animation: sleepDotPulse 3s ease-in-out infinite;
+}
+
+@keyframes sleepDotPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 0.6; transform: scale(1); }
+}
+
+/* Hint text */
+.sleep-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+.sleep-hint.visible {
+  opacity: 1;
+}
+
+.sleep-hint-icon {
+  font-size: 2rem;
+  animation: sleepTapHint 1.5s ease-in-out infinite;
+}
+
+@keyframes sleepTapHint {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.sleep-hint-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}

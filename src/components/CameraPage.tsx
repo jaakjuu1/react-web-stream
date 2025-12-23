@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   LiveKitRoom,
   useLocalParticipant,
@@ -10,6 +10,9 @@ import {
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import { api } from '../lib/api';
 import { cameraRoomOptions } from '../lib/livekit';
+
+// Type for Wake Lock API (using built-in types if available)
+type WakeLockSentinelType = WakeLockSentinel;
 
 export function CameraPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -75,6 +78,12 @@ function CameraInterface() {
   );
   const [isSwitching, setIsSwitching] = useState(false);
 
+  // Sleep mode state
+  const [isSleeping, setIsSleeping] = useState(false);
+  const [sleepHintVisible, setSleepHintVisible] = useState(true);
+  const wakeLockRef = useRef<WakeLockSentinelType | null>(null);
+  const tapTimesRef = useRef<number[]>([]);
+
   // Local camera track for preview
   const videoTracks = useTracks([Track.Source.Camera], {
     onlySubscribed: false,
@@ -113,6 +122,122 @@ function CameraInterface() {
       room.off(RoomEvent.ConnectionStateChanged, handleConnectionChange);
     };
   }, [room]);
+
+  // Track state logging for debugging screen-off behavior
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      console.log(`[TrackState] Visibility changed: ${document.visibilityState}`);
+
+      if (localParticipant) {
+        const videoTrack = localParticipant.getTrackPublication(Track.Source.Camera);
+        const audioTrack = localParticipant.getTrackPublication(Track.Source.Microphone);
+
+        console.log('[TrackState] Video track:', {
+          exists: !!videoTrack,
+          muted: videoTrack?.isMuted,
+          subscribed: videoTrack?.isSubscribed,
+          mediaStreamTrack: videoTrack?.track?.mediaStreamTrack?.readyState,
+        });
+
+        console.log('[TrackState] Audio track:', {
+          exists: !!audioTrack,
+          muted: audioTrack?.isMuted,
+          subscribed: audioTrack?.isSubscribed,
+          mediaStreamTrack: audioTrack?.track?.mediaStreamTrack?.readyState,
+        });
+      }
+
+      console.log('[TrackState] Connection state:', room.state);
+
+      // Re-acquire wake lock when becoming visible (it gets released when hidden)
+      if (isVisible && isSleeping && wakeLockRef.current?.released) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [localParticipant, room, isSleeping]);
+
+  // Request Wake Lock
+  const requestWakeLock = useCallback(async () => {
+    if (!('wakeLock' in navigator)) {
+      console.log('[WakeLock] API not supported');
+      return;
+    }
+
+    try {
+      wakeLockRef.current = await navigator.wakeLock.request('screen');
+      console.log('[WakeLock] Acquired');
+
+      wakeLockRef.current.addEventListener('release', () => {
+        console.log('[WakeLock] Released');
+      });
+    } catch (err) {
+      console.error('[WakeLock] Failed to acquire:', err);
+    }
+  }, []);
+
+  // Release Wake Lock
+  const releaseWakeLock = useCallback(async () => {
+    if (wakeLockRef.current && !wakeLockRef.current.released) {
+      await wakeLockRef.current.release();
+      wakeLockRef.current = null;
+      console.log('[WakeLock] Manually released');
+    }
+  }, []);
+
+  // Enter sleep mode
+  const enterSleepMode = useCallback(async () => {
+    setIsSleeping(true);
+    setSleepHintVisible(true);
+    await requestWakeLock();
+
+    // Hide hint after 3 seconds
+    setTimeout(() => {
+      setSleepHintVisible(false);
+    }, 3000);
+  }, [requestWakeLock]);
+
+  // Exit sleep mode
+  const exitSleepMode = useCallback(async () => {
+    setIsSleeping(false);
+    setSleepHintVisible(true);
+    await releaseWakeLock();
+  }, [releaseWakeLock]);
+
+  // Triple-tap detection
+  const handleSleepOverlayClick = useCallback(() => {
+    const now = Date.now();
+    const recentTaps = tapTimesRef.current.filter(t => now - t < 500);
+    recentTaps.push(now);
+    tapTimesRef.current = recentTaps;
+
+    if (recentTaps.length >= 3) {
+      tapTimesRef.current = [];
+      exitSleepMode();
+    }
+
+    // Show hint briefly on any tap
+    setSleepHintVisible(true);
+    setTimeout(() => {
+      if (isSleeping) {
+        setSleepHintVisible(false);
+      }
+    }, 2000);
+  }, [exitSleepMode, isSleeping]);
+
+  // Cleanup wake lock on unmount
+  useEffect(() => {
+    return () => {
+      if (wakeLockRef.current && !wakeLockRef.current.released) {
+        wakeLockRef.current.release();
+      }
+    };
+  }, []);
 
   const toggleCamera = useCallback(async () => {
     if (isSwitching) return;
@@ -193,6 +318,14 @@ function CameraInterface() {
         >
           <span className="switch-icon">🔄</span>
         </button>
+
+        <button
+          className="control-btn sleep-btn"
+          onClick={enterSleepMode}
+          title="Sleep mode (triple-tap to wake)"
+        >
+          🌙
+        </button>
       </div>
 
       <div className={`connection-status ${connectionState.toLowerCase()}`}>
@@ -221,6 +354,27 @@ function CameraInterface() {
       {viewerAudioTracks.map((track) => (
         <AudioTrack key={track.participant.identity} trackRef={track} />
       ))}
+
+      {/* Sleep mode overlay */}
+      {isSleeping && (
+        <div
+          className="sleep-overlay"
+          onClick={handleSleepOverlayClick}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            handleSleepOverlayClick();
+          }}
+        >
+          {/* Tiny streaming indicator */}
+          <div className="sleep-streaming-dot" />
+
+          {/* Hint text - fades after 3 seconds */}
+          <div className={`sleep-hint ${sleepHintVisible ? 'visible' : ''}`}>
+            <span className="sleep-hint-icon">👆👆👆</span>
+            <span className="sleep-hint-text">Triple-tap to wake</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
