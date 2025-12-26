@@ -23,6 +23,49 @@ interface Room {
   createdAt: string;
 }
 
+interface DetectionEvent {
+  id: string;
+  type: 'motion' | 'sound';
+  timestamp: string;
+  deviceId: string;
+  confidence: number | null;
+  thumbnailPath: string | null;
+  notificationSent: boolean;
+  markedFalsePositive: boolean;
+  room?: {
+    id: string;
+    name: string;
+  };
+}
+
+interface EventsListResponse {
+  events: DetectionEvent[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
+interface EventsListParams {
+  roomId?: string;
+  type?: 'motion' | 'sound';
+  deviceId?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+}
+
+interface EventStats {
+  total: number;
+  last24h: number;
+  last7d: number;
+  byType: Record<string, number>;
+  byDevice: Record<string, number>;
+}
+
 class ApiClient {
   private accessToken: string | null = null;
 
@@ -158,7 +201,92 @@ class ApiClient {
       body: JSON.stringify({ code, deviceName }),
     });
   }
+
+  // Detection Events
+  async getEvents(params: EventsListParams = {}): Promise<EventsListResponse> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        searchParams.set(key, String(value));
+      }
+    });
+    const query = searchParams.toString();
+    return this.request<EventsListResponse>(`/api/events${query ? `?${query}` : ''}`);
+  }
+
+  async getEvent(id: string): Promise<{ event: DetectionEvent }> {
+    return this.request<{ event: DetectionEvent }>(`/api/events/${id}`);
+  }
+
+  async createEvent(data: {
+    roomId: string;
+    type: 'motion' | 'sound';
+    deviceId: string;
+    confidence?: number;
+    thumbnailPath?: string;
+  }): Promise<{ event: DetectionEvent }> {
+    return this.request<{ event: DetectionEvent }>('/api/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateEvent(
+    id: string,
+    data: { markedFalsePositive?: boolean; notificationSent?: boolean }
+  ): Promise<{ event: DetectionEvent }> {
+    return this.request<{ event: DetectionEvent }>(`/api/events/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteEvent(id: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/events/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getEventStats(roomId: string): Promise<{ stats: EventStats }> {
+    return this.request<{ stats: EventStats }>(`/api/events/stats/${roomId}`);
+  }
+
+  // Push Notifications
+  async subscribePush(subscription: {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  }): Promise<{ success: boolean; subscriptionId: string }> {
+    return this.request('/api/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(subscription),
+    });
+  }
+
+  async unsubscribePush(endpoint: string): Promise<{ success: boolean }> {
+    return this.request('/api/push/subscribe', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    });
+  }
+
+  async getPushSubscriptions(): Promise<{
+    subscriptions: Array<{ id: string; endpoint: string; createdAt: string }>;
+  }> {
+    return this.request('/api/push/subscriptions');
+  }
+
+  async testPushNotification(): Promise<{ success: boolean; sent: number; failed: number }> {
+    return this.request('/api/push/test', { method: 'POST' });
+  }
 }
 
 export const api = new ApiClient();
-export type { TokenResponse, AuthResponse, Room };
+export type {
+  TokenResponse,
+  AuthResponse,
+  Room,
+  DetectionEvent,
+  EventsListResponse,
+  EventsListParams,
+  EventStats,
+};

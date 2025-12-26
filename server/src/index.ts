@@ -7,6 +7,8 @@ import { roomsRouter } from './routes/rooms.js';
 import { devicesRouter } from './routes/devices.js';
 import { tokensRouter } from './routes/tokens.js';
 import { pairingRouter } from './routes/pairing.js';
+import { eventsRouter } from './routes/events.js';
+import { pushRouter } from './routes/push.js';
 
 // Catch crashes
 process.on('uncaughtException', (err) => {
@@ -49,6 +51,8 @@ app.use('/api/rooms', roomsRouter);
 app.use('/api/devices', devicesRouter);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/pairing', pairingRouter);
+app.use('/api/events', eventsRouter);
+app.use('/api/push', pushRouter);
 
 // Error handler for API routes
 app.use('/api', (err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

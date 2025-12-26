@@ -29,10 +29,10 @@ model Room {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  devices      Device[]
-  recordings   Recording[]
-  motionEvents MotionEvent[]
-  pairingCodes PairingCode[]
+  devices         Device[]
+  recordings      Recording[]
+  detectionEvents DetectionEvent[]
+  pairingCodes    PairingCode[]
 
   @@index([userId])
 }
@@ -93,19 +93,23 @@ model Recording {
   @@index([startedAt])
 }
 
-model MotionEvent {
+model DetectionEvent {
   id               String   @id @default(cuid())
+  type             String   @default("motion") // 'motion' | 'sound'
   timestamp        DateTime @default(now())
   deviceId         String
   confidence       Float?
   thumbnailPath    String?
   notificationSent Boolean  @default(false)
+  markedFalsePositive Boolean @default(false)
 
   roomId String
   room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@index([roomId])
   @@index([timestamp])
+  @@index([deviceId])
+  @@index([type])
 }
 
 model PushSubscription {

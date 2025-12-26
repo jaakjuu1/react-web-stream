@@ -10,6 +10,7 @@ import {
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import { api } from '../lib/api';
 import { cameraRoomOptions } from '../lib/livekit';
+import { useDetection } from '../hooks/useDetection';
 
 // Type for Wake Lock API (using built-in types if available)
 type WakeLockSentinelType = WakeLockSentinel;
@@ -84,6 +85,11 @@ function CameraInterface() {
   const wakeLockRef = useRef<WakeLockSentinelType | null>(null);
   const tapTimesRef = useRef<number[]>([]);
 
+  // Detection state
+  const [detectionEnabled, setDetectionEnabled] = useState(true);
+  const [showDetectionFlash, setShowDetectionFlash] = useState(false);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
   // Local camera track for preview
   const videoTracks = useTracks([Track.Source.Camera], {
     onlySubscribed: false,
@@ -109,6 +115,46 @@ function CameraInterface() {
 
   // Check if any viewer is currently speaking
   const viewerIsSpeaking = viewerAudioTracks.length > 0;
+
+  // Get video element for detection
+  useEffect(() => {
+    const checkVideoElement = () => {
+      const video = document.querySelector('.camera-preview video') as HTMLVideoElement;
+      if (video && video !== videoElementRef.current) {
+        videoElementRef.current = video;
+      }
+    };
+    checkVideoElement();
+    const interval = setInterval(checkVideoElement, 500);
+    return () => clearInterval(interval);
+  }, [localVideoTrack]);
+
+  // Get media streams for detection
+  const videoStream = localParticipant?.getTrackPublication(Track.Source.Camera)?.track?.mediaStream || null;
+  const audioStream = localParticipant?.getTrackPublication(Track.Source.Microphone)?.track?.mediaStream || null;
+
+  // Detection hook
+  const detection = useDetection({
+    room,
+    deviceId: localParticipant?.identity || '',
+    videoElement: videoElementRef.current,
+    audioStream,
+    videoStream,
+    enabled: detectionEnabled && isConnected && !isSleeping,
+  });
+
+  // Flash effect when event detected
+  useEffect(() => {
+    if (detection.lastMotionEvent || detection.lastSoundEvent) {
+      setShowDetectionFlash(true);
+      const timeout = setTimeout(() => setShowDetectionFlash(false), 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [detection.lastMotionEvent, detection.lastSoundEvent]);
+
+  const toggleDetection = useCallback(() => {
+    setDetectionEnabled((prev) => !prev);
+  }, []);
 
   useEffect(() => {
     const handleConnectionChange = (state: ConnectionState) => {
@@ -272,7 +318,7 @@ function CameraInterface() {
 
   return (
     <div className="camera-interface">
-      <div className={`camera-preview ${isSwitching ? 'switching' : ''}`}>
+      <div className={`camera-preview ${isSwitching ? 'switching' : ''} ${showDetectionFlash ? 'detection-flash' : ''}`}>
         {localVideoTrack ? (
           <VideoTrack trackRef={localVideoTrack} />
         ) : (
@@ -284,6 +330,14 @@ function CameraInterface() {
           <div className="switch-overlay">
             <div className="switch-spinner" />
             <span>Switching camera...</span>
+          </div>
+        )}
+
+        {/* Detection capture indicator */}
+        {detection.isCapturing && (
+          <div className="capture-indicator">
+            <span className="capture-dot" />
+            <span>Capturing...</span>
           </div>
         )}
       </div>
@@ -326,6 +380,14 @@ function CameraInterface() {
         >
           🌙
         </button>
+
+        <button
+          className={`control-btn detection-btn ${detectionEnabled ? 'active' : ''}`}
+          onClick={toggleDetection}
+          title={detectionEnabled ? 'Disable detection' : 'Enable detection'}
+        >
+          {detectionEnabled ? '👁️' : '👁️‍🗨️'}
+        </button>
       </div>
 
       <div className={`connection-status ${connectionState.toLowerCase()}`}>
@@ -334,6 +396,36 @@ function CameraInterface() {
           {isConnected ? 'Live' : connectionState}
         </span>
       </div>
+
+      {/* Detection status indicator */}
+      {detectionEnabled && detection.isActive && (
+        <div className="detection-status">
+          <div className="detection-status-header">
+            <span className="detection-icon">👁️</span>
+            <span>Detection Active</span>
+          </div>
+          <div className="detection-levels">
+            <div className="level-bar">
+              <span className="level-label">Motion</span>
+              <div className="level-track">
+                <div
+                  className="level-fill motion"
+                  style={{ width: `${Math.min(detection.motionLevel * 100 / 0.05, 100)}%` }}
+                />
+              </div>
+            </div>
+            <div className="level-bar">
+              <span className="level-label">Sound</span>
+              <div className="level-track">
+                <div
+                  className="level-fill sound"
+                  style={{ width: `${Math.min(detection.soundLevel * 100 / 0.3, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="camera-info">
         <span>{localParticipant?.identity}</span>
