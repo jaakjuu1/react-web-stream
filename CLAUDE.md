@@ -1,8 +1,8 @@
-# Multi-Camera WebRTC Streaming App
+# Pet Portal
 
 ## Project Overview
 
-A React PWA for streaming video from up to 4 mobile phone cameras to 1-5 concurrent viewers using LiveKit Cloud SFU.
+A React PWA for monitoring your pets remotely. Stream video from up to 4 mobile phone cameras to 1-5 concurrent viewers using LiveKit Cloud SFU.
 
 ## Architecture
 

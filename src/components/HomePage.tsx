@@ -4,9 +4,9 @@ export function HomePage() {
   return (
     <div className="home-page">
       <h1>
-        <span className="highlight">Broadcast</span> Control
+        <span className="highlight">Pet</span> Portal
       </h1>
-      <p>Multi-camera streaming powered by WebRTC</p>
+      <p>Keep an eye on your pets from anywhere</p>
 
       <div className="home-links">
         <Link to="/camera" className="home-link camera-link">
