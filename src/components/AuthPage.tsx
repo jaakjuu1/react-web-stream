@@ -1,4 +1,4 @@
-import { SignIn, SignUp } from '@clerk/clerk-react';
+import { SignIn, SignUp } from '@clerk/react';
 import { useSearchParams, Link } from 'react-router-dom';
 
 export function AuthPage() {
@@ -19,7 +19,7 @@ export function AuthPage() {
             <SignUp
               routing="hash"
               signInUrl="/auth"
-              afterSignUpUrl="/"
+              fallbackRedirectUrl="/"
               appearance={{
                 elements: {
                   rootBox: 'clerk-root',
@@ -31,7 +31,7 @@ export function AuthPage() {
             <SignIn
               routing="hash"
               signUpUrl="/auth?mode=sign-up"
-              afterSignInUrl="/"
+              fallbackRedirectUrl="/"
               appearance={{
                 elements: {
                   rootBox: 'clerk-root',

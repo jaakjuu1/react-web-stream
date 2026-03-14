@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { UserButton, useUser, useAuth } from '@clerk/clerk-react';
+import { UserButton, useUser, useAuth } from '@clerk/react';
 import { useSubscription, useHasActiveSubscription } from '../stores/authStore';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -58,7 +58,7 @@ export function UserMenu() {
           )}
         </div>
 
-        <UserButton afterSignOutUrl="/" />
+        <UserButton />
       </div>
 
       {subscription.status !== 'none' && subscription.status !== 'active' && subscription.status !== 'trialing' && (

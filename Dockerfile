@@ -5,6 +5,10 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
+# Frontend build args (Vite inlines VITE_* at build time)
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_LIVEKIT_URL
+
 # Copy root package files
 COPY package.json package-lock.json ./
 
@@ -18,7 +22,7 @@ COPY index.html ./
 COPY public ./public
 COPY src ./src
 
-# Build frontend
+# Build frontend (VITE_* args are available as env vars during build)
 RUN npm run build
 
 # ============================================

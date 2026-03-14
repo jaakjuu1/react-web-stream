@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/react';
 import { useHasActiveSubscription } from '../stores/authStore';
 import { UserMenu } from './UserMenu';
 

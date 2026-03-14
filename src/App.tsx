@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/react';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { HomePage } from './components/HomePage';
 import { AuthPage } from './components/AuthPage';

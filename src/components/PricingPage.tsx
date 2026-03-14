@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/react';
 import { useSubscription, useHasActiveSubscription } from '../stores/authStore';
 import { api } from '../lib/api';
 
