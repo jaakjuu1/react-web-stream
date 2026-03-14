@@ -16,6 +16,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1009.0",
     "@prisma/client": "^6.10.0",
     "bcrypt": "^6.0.0",
+    "@clerk/express": "^1.7.60",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "jose": "^6.1.3",
