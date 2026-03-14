@@ -2,11 +2,11 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { Room, RoomEvent, DataPacket_Kind } from 'livekit-client';
 import { MotionDetector } from '../services/motionDetector';
 import { SoundDetector } from '../services/soundDetector';
-import { ClipRecorder, StoredClip } from '../services/clipRecorder';
+import { ClipRecorder, type StoredClip } from '../services/clipRecorder';
 import {
   EventManager,
-  DetectionSettings,
-  DetectionEvent,
+  type DetectionSettings,
+  type DetectionEvent,
   sensitivityToMotionThreshold,
   sensitivityToSoundThreshold,
 } from '../services/eventManager';
@@ -18,6 +18,14 @@ export interface UseDetectionOptions {
   audioStream: MediaStream | null;
   videoStream: MediaStream | null;
   enabled?: boolean;
+  onClipCaptured?: (clip: {
+    id: string;
+    type: 'motion' | 'sound';
+    timestamp: number;
+    confidence: number;
+    deviceId: string;
+    videoBlob: Blob;
+  }) => void;
 }
 
 export interface DetectionState {
@@ -33,7 +41,11 @@ export interface DetectionState {
 const DETECTION_INTERVAL = 200; // ms between detection checks
 
 export function useDetection(options: UseDetectionOptions) {
-  const { room, deviceId, videoElement, audioStream, videoStream, enabled = true } = options;
+  const { room, deviceId, videoElement, audioStream, videoStream, enabled = true, onClipCaptured } = options;
+
+  // Use ref for callback to avoid recreating services when callback changes
+  const onClipCapturedRef = useRef(onClipCaptured);
+  onClipCapturedRef.current = onClipCaptured;
 
   const [state, setState] = useState<DetectionState>({
     isActive: false,
@@ -80,6 +92,18 @@ export function useDetection(options: UseDetectionOptions) {
 
     setState((prev) => ({ ...prev, isCapturing: false }));
 
+    // Notify for sync if clip was captured
+    if (clip && clip.videoBlob && onClipCapturedRef.current) {
+      onClipCapturedRef.current({
+        id: clip.id,
+        type: clip.type,
+        timestamp: clip.timestamp,
+        confidence: clip.confidence,
+        deviceId: clip.deviceId,
+        videoBlob: clip.videoBlob,
+      });
+    }
+
     // Send event to viewers via LiveKit data channel
     if (room && eventManagerRef.current) {
       const message = eventManagerRef.current.createEventMessage(event);
@@ -96,8 +120,6 @@ export function useDetection(options: UseDetectionOptions) {
         console.error('[useDetection] Failed to send event:', err);
       }
     }
-
-    return clip;
   }, [room, videoElement]);
 
   // Handle settings received from viewer

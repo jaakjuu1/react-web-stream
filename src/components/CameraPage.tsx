@@ -11,6 +11,7 @@ import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import { api } from '../lib/api';
 import { cameraRoomOptions } from '../lib/livekit';
 import { useDetection } from '../hooks/useDetection';
+import { useClipSync } from '../hooks/useClipSync';
 
 // Type for Wake Lock API (using built-in types if available)
 type WakeLockSentinelType = WakeLockSentinel;
@@ -74,6 +75,7 @@ function CameraInterface() {
   const [connectionState, setConnectionState] = useState<ConnectionState>(
     ConnectionState.Connecting
   );
+  const isConnected = connectionState === ConnectionState.Connected;
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>(
     'environment'
   );
@@ -88,6 +90,8 @@ function CameraInterface() {
   // Detection state
   const [detectionEnabled, setDetectionEnabled] = useState(true);
   const [showDetectionFlash, setShowDetectionFlash] = useState(false);
+  const [soundHintDismissed, setSoundHintDismissed] = useState(false);
+  const [initialMuteDone, setInitialMuteDone] = useState(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
   // Local camera track for preview
@@ -133,6 +137,32 @@ function CameraInterface() {
   const videoStream = localParticipant?.getTrackPublication(Track.Source.Camera)?.track?.mediaStream || null;
   const audioStream = localParticipant?.getTrackPublication(Track.Source.Microphone)?.track?.mediaStream || null;
 
+  // Clip sync hook
+  const clipSync = useClipSync({
+    roomId: room?.name || null,
+    enabled: isConnected,
+  });
+
+  // Handle clip captured for sync - use refs to avoid recreating callback
+  const clipSyncRef = useRef(clipSync);
+  clipSyncRef.current = clipSync;
+
+  const handleClipCaptured = useCallback(
+    (clip: {
+      id: string;
+      type: 'motion' | 'sound';
+      timestamp: number;
+      confidence: number;
+      deviceId: string;
+      videoBlob: Blob;
+    }) => {
+      if (clipSyncRef.current.isInitialized) {
+        clipSyncRef.current.queueClip(clip);
+      }
+    },
+    []
+  );
+
   // Detection hook
   const detection = useDetection({
     room,
@@ -141,6 +171,7 @@ function CameraInterface() {
     audioStream,
     videoStream,
     enabled: detectionEnabled && isConnected && !isSleeping,
+    onClipCaptured: handleClipCaptured,
   });
 
   // Flash effect when event detected
@@ -168,6 +199,21 @@ function CameraInterface() {
       room.off(RoomEvent.ConnectionStateChanged, handleConnectionChange);
     };
   }, [room]);
+
+  // Mute microphone initially to allow user gesture for sound detection
+  useEffect(() => {
+    if (isConnected && localParticipant && !initialMuteDone) {
+      // Small delay to ensure track is published first
+      const timer = setTimeout(() => {
+        if (localParticipant.isMicrophoneEnabled) {
+          localParticipant.setMicrophoneEnabled(false);
+          console.log('[Camera] Microphone muted initially - unmute to enable sound detection');
+        }
+        setInitialMuteDone(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, localParticipant, initialMuteDone]);
 
   // Track state logging for debugging screen-off behavior
   useEffect(() => {
@@ -310,11 +356,22 @@ function CameraInterface() {
     if (localParticipant) {
       const enabled = localParticipant.isMicrophoneEnabled;
       await localParticipant.setMicrophoneEnabled(!enabled);
+      // Reset the sound hint dismissed state when unmuting
+      if (enabled === false) {
+        setSoundHintDismissed(false);
+      }
     }
   }, [localParticipant]);
 
   const isMuted = !localParticipant?.isMicrophoneEnabled;
-  const isConnected = connectionState === ConnectionState.Connected;
+
+  // Show sound detection hint when detection is enabled, sound detection is on, but mic is muted
+  const showSoundHint = detectionEnabled &&
+    detection.settings.soundEnabled &&
+    isMuted &&
+    !soundHintDismissed &&
+    isConnected &&
+    !isSleeping;
 
   return (
     <div className="camera-interface">
@@ -390,6 +447,24 @@ function CameraInterface() {
         </button>
       </div>
 
+      {/* Sound detection hint toast */}
+      {showSoundHint && (
+        <div className="toast-hint">
+          <span className="toast-icon">🔊</span>
+          <span className="toast-text">Unmute to enable sound detection</span>
+          <button className="toast-action" onClick={toggleMute}>
+            Unmute
+          </button>
+          <button
+            className="toast-dismiss"
+            onClick={() => setSoundHintDismissed(true)}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className={`connection-status ${connectionState.toLowerCase()}`}>
         <span className="status-dot" />
         <span className="status-text">
@@ -433,6 +508,30 @@ function CameraInterface() {
           {facingMode === 'user' ? 'Front' : 'Back'}
         </span>
       </div>
+
+      {/* Clip sync status indicator */}
+      {clipSync.isInitialized && (clipSync.stats.pending > 0 || clipSync.stats.uploading > 0 || clipSync.stats.failed > 0) && (
+        <div className="sync-status">
+          {clipSync.stats.uploading > 0 && (
+            <span className="sync-uploading">
+              <span className="sync-icon">⬆️</span>
+              <span>Uploading {clipSync.stats.uploading}</span>
+            </span>
+          )}
+          {clipSync.stats.pending > 0 && clipSync.stats.uploading === 0 && (
+            <span className="sync-pending">
+              <span className="sync-icon">📤</span>
+              <span>{clipSync.stats.pending} pending</span>
+            </span>
+          )}
+          {clipSync.stats.failed > 0 && (
+            <button className="sync-retry-btn" onClick={() => clipSync.retryFailed()}>
+              <span className="sync-icon">⚠️</span>
+              <span>{clipSync.stats.failed} failed - Tap to retry</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Viewer speaking indicator */}
       {viewerIsSpeaking && (

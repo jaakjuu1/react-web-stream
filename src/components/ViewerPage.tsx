@@ -12,6 +12,9 @@ import { viewerRoomOptions } from '../lib/livekit';
 import { VideoTile } from './VideoTile';
 import { EventFeed } from './EventFeed';
 import { DetectionSettings } from './DetectionSettings';
+import { ClipList } from './ClipList';
+import { ClipPlayer } from './ClipPlayer';
+import type { Clip } from '../lib/api';
 
 export function ViewerPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -85,6 +88,10 @@ function ViewerInterface() {
   const [isTalking, setIsTalking] = useState(false);
   // Sidebar visibility
   const [showSidebar, setShowSidebar] = useState(true);
+  // Sidebar tab
+  const [sidebarTab, setSidebarTab] = useState<'events' | 'clips' | 'settings'>('events');
+  // Clip player
+  const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
 
   // Disable microphone on mount (start silent)
   useEffect(() => {
@@ -244,12 +251,40 @@ function ViewerInterface() {
           )}
         </div>
 
-        {/* Sidebar with event feed and settings */}
+        {/* Sidebar with tabs */}
         {showSidebar && (
           <div className="viewer-sidebar">
-            <EventFeed room={room} />
-            <DetectionSettings room={room} />
+            <div className="sidebar-tabs">
+              <button
+                className={`sidebar-tab ${sidebarTab === 'events' ? 'active' : ''}`}
+                onClick={() => setSidebarTab('events')}
+              >
+                Events
+              </button>
+              <button
+                className={`sidebar-tab ${sidebarTab === 'clips' ? 'active' : ''}`}
+                onClick={() => setSidebarTab('clips')}
+              >
+                Clips
+              </button>
+              <button
+                className={`sidebar-tab ${sidebarTab === 'settings' ? 'active' : ''}`}
+                onClick={() => setSidebarTab('settings')}
+              >
+                Settings
+              </button>
+            </div>
+            <div className="sidebar-content">
+              {sidebarTab === 'events' && <EventFeed room={room} />}
+              {sidebarTab === 'clips' && <ClipList onPlayClip={setSelectedClip} />}
+              {sidebarTab === 'settings' && <DetectionSettings room={room} />}
+            </div>
           </div>
+        )}
+
+        {/* Clip player modal */}
+        {selectedClip && (
+          <ClipPlayer clip={selectedClip} onClose={() => setSelectedClip(null)} />
         )}
       </div>
 
