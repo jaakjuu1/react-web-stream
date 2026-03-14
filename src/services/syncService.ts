@@ -28,6 +28,33 @@ const RETRY_DELAYS = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff
 
 type SyncEventListener = (stats: SyncStats) => void;
 
+/** Count records matching a key on an IDBIndex without deserializing blobs. */
+function countByIndex(index: IDBIndex, key: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const request = index.count(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/** Get only the IDs of records matching a key on an IDBIndex. */
+function getKeysByIndex(index: IDBIndex, key: string): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const keys: string[] = [];
+    const request = index.openKeyCursor(key);
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        keys.push(cursor.primaryKey as string);
+        cursor.continue();
+      } else {
+        resolve(keys);
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 class SyncService {
   private db: IDBDatabase | null = null;
   private isProcessing = false;
@@ -61,7 +88,6 @@ class SyncService {
 
   addListener(listener: SyncEventListener): () => void {
     this.listeners.add(listener);
-    // Immediately emit current stats
     this.emitStats();
     return () => this.listeners.delete(listener);
   }
@@ -89,7 +115,7 @@ class SyncService {
         console.log('[SyncService] Clip queued:', clip.id);
         this.emitStats();
         resolve();
-        this.processQueue(); // Start processing
+        this.processQueue();
       };
       request.onerror = () => reject(request.error);
     });
@@ -97,41 +123,40 @@ class SyncService {
 
   async processQueue(): Promise<void> {
     if (this.isProcessing || !navigator.onLine) {
-      console.log('[SyncService] Skipping queue processing:', {
-        isProcessing: this.isProcessing,
-        online: navigator.onLine,
-      });
       return;
     }
     this.isProcessing = true;
 
     try {
-      const pendingClips = await this.getPendingClips();
-      console.log('[SyncService] Processing', pendingClips.length, 'pending clips');
+      // Get only IDs of pending clips to avoid loading blobs into memory
+      const pendingIds = await this.getPendingClipIds();
+      console.log('[SyncService] Processing', pendingIds.length, 'pending clips');
 
-      for (const clip of pendingClips) {
+      for (const clipId of pendingIds) {
         if (!navigator.onLine) break;
 
-        await this.updateClipStatus(clip.id, 'uploading');
+        await this.updateClipStatus(clipId, 'uploading');
+
+        // Load one clip at a time to limit memory usage
+        const clip = await this.getClipById(clipId);
+        if (!clip) continue;
 
         try {
           await this.uploadClip(clip);
-          await this.updateClipStatus(clip.id, 'synced');
-          console.log('[SyncService] Clip uploaded successfully:', clip.id);
+          await this.updateClipStatus(clipId, 'synced');
+          console.log('[SyncService] Clip uploaded successfully:', clipId);
         } catch (error) {
-          console.error('[SyncService] Upload failed:', clip.id, error);
+          console.error('[SyncService] Upload failed:', clipId, error);
           const attempts = clip.syncAttempts + 1;
           const status = attempts >= MAX_RETRY_ATTEMPTS ? 'failed' : 'pending';
 
-          await this.updateClipStatus(clip.id, status, {
+          await this.updateClipStatus(clipId, status, {
             syncAttempts: attempts,
             lastSyncError: error instanceof Error ? error.message : 'Upload failed',
           });
 
-          // Schedule retry with backoff
           if (status === 'pending') {
             const delay = RETRY_DELAYS[Math.min(attempts - 1, RETRY_DELAYS.length - 1)];
-            console.log('[SyncService] Scheduling retry in', delay, 'ms');
             this.retryTimeoutId = setTimeout(() => this.processQueue(), delay);
           }
         }
@@ -156,14 +181,21 @@ class SyncService {
     await api.uploadClip(formData);
   }
 
-  private async getPendingClips(): Promise<SyncableClip[]> {
+  /** Get IDs only — no blob deserialization. */
+  private async getPendingClipIds(): Promise<string[]> {
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const index = store.index('syncStatus');
-      const request = index.getAll('pending');
+      const index = tx.objectStore(STORE_NAME).index('syncStatus');
+      resolve(getKeysByIndex(index, 'pending'));
+    });
+  }
 
-      request.onsuccess = () => resolve(request.result);
+  /** Load a single clip by ID (including blob). */
+  private async getClipById(id: string): Promise<SyncableClip | null> {
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(STORE_NAME, 'readonly');
+      const request = tx.objectStore(STORE_NAME).get(id);
+      request.onsuccess = () => resolve(request.result ?? null);
       request.onerror = () => reject(request.error);
     });
   }
@@ -190,42 +222,34 @@ class SyncService {
     });
   }
 
+  /** Count clips per status using index counts — no blob deserialization. */
   async getSyncStats(): Promise<SyncStats> {
     if (!this.db) {
       return { pending: 0, uploading: 0, synced: 0, failed: 0 };
     }
 
-    const all = await this.getAllClips();
-    return {
-      pending: all.filter((c) => c.syncStatus === 'pending').length,
-      uploading: all.filter((c) => c.syncStatus === 'uploading').length,
-      synced: all.filter((c) => c.syncStatus === 'synced').length,
-      failed: all.filter((c) => c.syncStatus === 'failed').length,
-    };
-  }
+    const tx = this.db.transaction(STORE_NAME, 'readonly');
+    const index = tx.objectStore(STORE_NAME).index('syncStatus');
 
-  private async getAllClips(): Promise<SyncableClip[]> {
-    return new Promise((resolve, reject) => {
-      const tx = this.db!.transaction(STORE_NAME, 'readonly');
-      const request = tx.objectStore(STORE_NAME).getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    const [pending, uploading, synced, failed] = await Promise.all([
+      countByIndex(index, 'pending'),
+      countByIndex(index, 'uploading'),
+      countByIndex(index, 'synced'),
+      countByIndex(index, 'failed'),
+    ]);
+
+    return { pending, uploading, synced, failed };
   }
 
   async retryFailed(): Promise<void> {
-    const failed = await new Promise<SyncableClip[]>((resolve, reject) => {
-      const tx = this.db!.transaction(STORE_NAME, 'readonly');
-      const index = tx.objectStore(STORE_NAME).index('syncStatus');
-      const request = index.getAll('failed');
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    const tx = this.db!.transaction(STORE_NAME, 'readonly');
+    const index = tx.objectStore(STORE_NAME).index('syncStatus');
+    const failedIds = await getKeysByIndex(index, 'failed');
 
-    console.log('[SyncService] Retrying', failed.length, 'failed clips');
+    console.log('[SyncService] Retrying', failedIds.length, 'failed clips');
 
-    for (const clip of failed) {
-      await this.updateClipStatus(clip.id, 'pending', { syncAttempts: 0 });
+    for (const id of failedIds) {
+      await this.updateClipStatus(id, 'pending', { syncAttempts: 0 });
     }
 
     this.emitStats();
@@ -233,22 +257,18 @@ class SyncService {
   }
 
   async clearSynced(): Promise<void> {
-    const synced = await new Promise<SyncableClip[]>((resolve, reject) => {
-      const tx = this.db!.transaction(STORE_NAME, 'readonly');
-      const index = tx.objectStore(STORE_NAME).index('syncStatus');
-      const request = index.getAll('synced');
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    const tx = this.db!.transaction(STORE_NAME, 'readonly');
+    const index = tx.objectStore(STORE_NAME).index('syncStatus');
+    const syncedIds = await getKeysByIndex(index, 'synced');
 
-    const tx = this.db!.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
+    const deleteTx = this.db!.transaction(STORE_NAME, 'readwrite');
+    const store = deleteTx.objectStore(STORE_NAME);
 
-    for (const clip of synced) {
-      store.delete(clip.id);
+    for (const id of syncedIds) {
+      store.delete(id);
     }
 
-    console.log('[SyncService] Cleared', synced.length, 'synced clips from local DB');
+    console.log('[SyncService] Cleared', syncedIds.length, 'synced clips from local DB');
     this.emitStats();
   }
 

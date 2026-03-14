@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, type Clip } from '../lib/api';
 
 interface ClipListProps {
@@ -15,13 +15,16 @@ export function ClipList({ roomId, onPlayClip }: ClipListProps) {
   const [offset, setOffset] = useState(0);
   const limit = 20;
 
+  const offsetRef = useRef(offset);
+  offsetRef.current = offset;
+
   const fetchClips = useCallback(async (reset = false) => {
     setIsLoading(true);
     setError(null);
     try {
       const params: { roomId?: string; type?: 'motion' | 'sound'; limit: number; offset: number } = {
         limit,
-        offset: reset ? 0 : offset,
+        offset: reset ? 0 : offsetRef.current,
       };
       if (roomId) params.roomId = roomId;
       if (filter !== 'all') params.type = filter;
@@ -41,7 +44,7 @@ export function ClipList({ roomId, onPlayClip }: ClipListProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, filter, offset]);
+  }, [roomId, filter]);
 
   useEffect(() => {
     fetchClips(true);

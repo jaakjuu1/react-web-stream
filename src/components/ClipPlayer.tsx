@@ -1,6 +1,18 @@
 import { useRef, useEffect, useState } from 'react';
 import { api, type Clip } from '../lib/api';
 
+// Client-side cache for presigned URLs (avoids re-fetching on re-open)
+const urlCache = new Map<string, { url: string; expiresAt: number }>();
+const URL_CACHE_TTL = 50 * 60 * 1000; // 50 minutes (presigned URLs expire in 60)
+
+async function getCachedPlaybackUrl(clipId: string): Promise<string> {
+  const cached = urlCache.get(clipId);
+  if (cached && Date.now() < cached.expiresAt) return cached.url;
+  const url = await api.getClipPlaybackUrl(clipId);
+  urlCache.set(clipId, { url, expiresAt: Date.now() + URL_CACHE_TTL });
+  return url;
+}
+
 interface ClipPlayerProps {
   clip: Clip;
   onClose: () => void;
@@ -18,7 +30,7 @@ export function ClipPlayer({ clip, onClose }: ClipPlayerProps) {
     setVideoUrl(null);
     setError(null);
 
-    api.getClipPlaybackUrl(clip.id).then((url) => {
+    getCachedPlaybackUrl(clip.id).then((url) => {
       if (!cancelled) setVideoUrl(url);
     }).catch((err) => {
       if (!cancelled) setError(err.message || 'Failed to load clip');

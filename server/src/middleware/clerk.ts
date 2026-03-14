@@ -7,6 +7,30 @@ export interface ClerkRequest extends Request {
   clerkId?: string;
 }
 
+// In-memory cache: clerkId -> internal userId (mapping never changes once created)
+const userIdCache = new Map<string, { userId: string; expiresAt: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_MAX_SIZE = 1000;
+
+function getCachedUserId(clerkId: string): string | null {
+  const entry = userIdCache.get(clerkId);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    userIdCache.delete(clerkId);
+    return null;
+  }
+  return entry.userId;
+}
+
+function setCachedUserId(clerkId: string, userId: string): void {
+  // Evict oldest entry if at capacity
+  if (userIdCache.size >= CACHE_MAX_SIZE) {
+    const firstKey = userIdCache.keys().next().value!;
+    userIdCache.delete(firstKey);
+  }
+  userIdCache.set(clerkId, { userId, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
 /**
  * Middleware that requires Clerk authentication and maps clerkId to internal userId.
  * This allows routes to continue using req.userId for database queries.
@@ -24,6 +48,13 @@ export function clerkAuth() {
 
         req.clerkId = clerkId;
 
+        // Check cache first
+        const cached = getCachedUserId(clerkId);
+        if (cached) {
+          req.userId = cached;
+          return next();
+        }
+
         // Find or create user in database
         let user = await prisma.user.findUnique({
           where: { clerkId },
@@ -38,6 +69,7 @@ export function clerkAuth() {
           console.log('[Clerk] Created new user for Clerk ID:', clerkId);
         }
 
+        setCachedUserId(clerkId, user.id);
         req.userId = user.id;
         next();
       } catch (error) {
