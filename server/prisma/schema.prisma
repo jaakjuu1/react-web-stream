@@ -8,15 +8,23 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  passwordHash  String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Stripe subscription fields
+  stripeCustomerId     String?   @unique
+  subscriptionId       String?   @unique
+  subscriptionStatus   String?   // 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid'
+  subscriptionPlanId   String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
 
   rooms             Room[]
   devices           Device[]
   pushSubscriptions PushSubscription[]
+  clips             Clip[]
 }
 
 model Room {
@@ -29,10 +37,11 @@ model Room {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  devices      Device[]
-  recordings   Recording[]
-  motionEvents MotionEvent[]
-  pairingCodes PairingCode[]
+  devices         Device[]
+  recordings      Recording[]
+  detectionEvents DetectionEvent[]
+  pairingCodes    PairingCode[]
+  clips           Clip[]
 
   @@index([userId])
 }
@@ -93,19 +102,23 @@ model Recording {
   @@index([startedAt])
 }
 
-model MotionEvent {
+model DetectionEvent {
   id               String   @id @default(cuid())
+  type             String   @default("motion") // 'motion' | 'sound'
   timestamp        DateTime @default(now())
   deviceId         String
   confidence       Float?
   thumbnailPath    String?
   notificationSent Boolean  @default(false)
+  markedFalsePositive Boolean @default(false)
 
   roomId String
   room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@index([roomId])
   @@index([timestamp])
+  @@index([deviceId])
+  @@index([type])
 }
 
 model PushSubscription {
@@ -119,4 +132,30 @@ model PushSubscription {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Clip {
+  id            String   @id @default(cuid())
+  filename      String
+  storagePath   String
+  storageType   String   @default("local")
+  mimeType      String   @default("video/webm")
+  fileSize      Int
+  duration      Int?
+
+  detectionType String
+  confidence    Float
+
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId   String
+  room     Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  deviceId String
+
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([userId, roomId])
+  @@index([roomId, recordedAt])
+  @@index([deviceId])
 }

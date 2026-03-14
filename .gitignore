@@ -17,6 +17,14 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Uploads
+server/uploads/*
+!server/uploads/.gitkeep
+
+# SQLite database
+server/prisma/dev.db
+server/prisma/dev.db-journal
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

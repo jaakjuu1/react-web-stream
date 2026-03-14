@@ -10,6 +10,8 @@ import {
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import { api } from '../lib/api';
 import { cameraRoomOptions } from '../lib/livekit';
+import { useDetection } from '../hooks/useDetection';
+import { useClipSync } from '../hooks/useClipSync';
 
 // Type for Wake Lock API (using built-in types if available)
 type WakeLockSentinelType = WakeLockSentinel;
@@ -73,6 +75,7 @@ function CameraInterface() {
   const [connectionState, setConnectionState] = useState<ConnectionState>(
     ConnectionState.Connecting
   );
+  const isConnected = connectionState === ConnectionState.Connected;
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>(
     'environment'
   );
@@ -83,6 +86,13 @@ function CameraInterface() {
   const [sleepHintVisible, setSleepHintVisible] = useState(true);
   const wakeLockRef = useRef<WakeLockSentinelType | null>(null);
   const tapTimesRef = useRef<number[]>([]);
+
+  // Detection state
+  const [detectionEnabled, setDetectionEnabled] = useState(true);
+  const [showDetectionFlash, setShowDetectionFlash] = useState(false);
+  const [soundHintDismissed, setSoundHintDismissed] = useState(false);
+  const [initialMuteDone, setInitialMuteDone] = useState(false);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
   // Local camera track for preview
   const videoTracks = useTracks([Track.Source.Camera], {
@@ -110,6 +120,73 @@ function CameraInterface() {
   // Check if any viewer is currently speaking
   const viewerIsSpeaking = viewerAudioTracks.length > 0;
 
+  // Get video element for detection
+  useEffect(() => {
+    const checkVideoElement = () => {
+      const video = document.querySelector('.camera-preview video') as HTMLVideoElement;
+      if (video && video !== videoElementRef.current) {
+        videoElementRef.current = video;
+      }
+    };
+    checkVideoElement();
+    const interval = setInterval(checkVideoElement, 500);
+    return () => clearInterval(interval);
+  }, [localVideoTrack]);
+
+  // Get media streams for detection
+  const videoStream = localParticipant?.getTrackPublication(Track.Source.Camera)?.track?.mediaStream || null;
+  const audioStream = localParticipant?.getTrackPublication(Track.Source.Microphone)?.track?.mediaStream || null;
+
+  // Clip sync hook
+  const clipSync = useClipSync({
+    roomId: room?.name || null,
+    enabled: isConnected,
+  });
+
+  // Handle clip captured for sync - use refs to avoid recreating callback
+  const clipSyncRef = useRef(clipSync);
+  clipSyncRef.current = clipSync;
+
+  const handleClipCaptured = useCallback(
+    (clip: {
+      id: string;
+      type: 'motion' | 'sound';
+      timestamp: number;
+      confidence: number;
+      deviceId: string;
+      videoBlob: Blob;
+    }) => {
+      if (clipSyncRef.current.isInitialized) {
+        clipSyncRef.current.queueClip(clip);
+      }
+    },
+    []
+  );
+
+  // Detection hook
+  const detection = useDetection({
+    room,
+    deviceId: localParticipant?.identity || '',
+    videoElement: videoElementRef.current,
+    audioStream,
+    videoStream,
+    enabled: detectionEnabled && isConnected && !isSleeping,
+    onClipCaptured: handleClipCaptured,
+  });
+
+  // Flash effect when event detected
+  useEffect(() => {
+    if (detection.lastMotionEvent || detection.lastSoundEvent) {
+      setShowDetectionFlash(true);
+      const timeout = setTimeout(() => setShowDetectionFlash(false), 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [detection.lastMotionEvent, detection.lastSoundEvent]);
+
+  const toggleDetection = useCallback(() => {
+    setDetectionEnabled((prev) => !prev);
+  }, []);
+
   useEffect(() => {
     const handleConnectionChange = (state: ConnectionState) => {
       setConnectionState(state);
@@ -122,6 +199,21 @@ function CameraInterface() {
       room.off(RoomEvent.ConnectionStateChanged, handleConnectionChange);
     };
   }, [room]);
+
+  // Mute microphone initially to allow user gesture for sound detection
+  useEffect(() => {
+    if (isConnected && localParticipant && !initialMuteDone) {
+      // Small delay to ensure track is published first
+      const timer = setTimeout(() => {
+        if (localParticipant.isMicrophoneEnabled) {
+          localParticipant.setMicrophoneEnabled(false);
+          console.log('[Camera] Microphone muted initially - unmute to enable sound detection');
+        }
+        setInitialMuteDone(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, localParticipant, initialMuteDone]);
 
   // Track state logging for debugging screen-off behavior
   useEffect(() => {
@@ -264,15 +356,26 @@ function CameraInterface() {
     if (localParticipant) {
       const enabled = localParticipant.isMicrophoneEnabled;
       await localParticipant.setMicrophoneEnabled(!enabled);
+      // Reset the sound hint dismissed state when unmuting
+      if (enabled === false) {
+        setSoundHintDismissed(false);
+      }
     }
   }, [localParticipant]);
 
   const isMuted = !localParticipant?.isMicrophoneEnabled;
-  const isConnected = connectionState === ConnectionState.Connected;
+
+  // Show sound detection hint when detection is enabled, sound detection is on, but mic is muted
+  const showSoundHint = detectionEnabled &&
+    detection.settings.soundEnabled &&
+    isMuted &&
+    !soundHintDismissed &&
+    isConnected &&
+    !isSleeping;
 
   return (
     <div className="camera-interface">
-      <div className={`camera-preview ${isSwitching ? 'switching' : ''}`}>
+      <div className={`camera-preview ${isSwitching ? 'switching' : ''} ${showDetectionFlash ? 'detection-flash' : ''}`}>
         {localVideoTrack ? (
           <VideoTrack trackRef={localVideoTrack} />
         ) : (
@@ -284,6 +387,14 @@ function CameraInterface() {
           <div className="switch-overlay">
             <div className="switch-spinner" />
             <span>Switching camera...</span>
+          </div>
+        )}
+
+        {/* Detection capture indicator */}
+        {detection.isCapturing && (
+          <div className="capture-indicator">
+            <span className="capture-dot" />
+            <span>Capturing...</span>
           </div>
         )}
       </div>
@@ -326,7 +437,33 @@ function CameraInterface() {
         >
           🌙
         </button>
+
+        <button
+          className={`control-btn detection-btn ${detectionEnabled ? 'active' : ''}`}
+          onClick={toggleDetection}
+          title={detectionEnabled ? 'Disable detection' : 'Enable detection'}
+        >
+          {detectionEnabled ? '👁️' : '👁️‍🗨️'}
+        </button>
       </div>
+
+      {/* Sound detection hint toast */}
+      {showSoundHint && (
+        <div className="toast-hint">
+          <span className="toast-icon">🔊</span>
+          <span className="toast-text">Unmute to enable sound detection</span>
+          <button className="toast-action" onClick={toggleMute}>
+            Unmute
+          </button>
+          <button
+            className="toast-dismiss"
+            onClick={() => setSoundHintDismissed(true)}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className={`connection-status ${connectionState.toLowerCase()}`}>
         <span className="status-dot" />
@@ -335,12 +472,66 @@ function CameraInterface() {
         </span>
       </div>
 
+      {/* Detection status indicator */}
+      {detectionEnabled && detection.isActive && (
+        <div className="detection-status">
+          <div className="detection-status-header">
+            <span className="detection-icon">👁️</span>
+            <span>Detection Active</span>
+          </div>
+          <div className="detection-levels">
+            <div className="level-bar">
+              <span className="level-label">Motion</span>
+              <div className="level-track">
+                <div
+                  className="level-fill motion"
+                  style={{ width: `${Math.min(detection.motionLevel * 100 / 0.05, 100)}%` }}
+                />
+              </div>
+            </div>
+            <div className="level-bar">
+              <span className="level-label">Sound</span>
+              <div className="level-track">
+                <div
+                  className="level-fill sound"
+                  style={{ width: `${Math.min(detection.soundLevel * 100 / 0.3, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="camera-info">
         <span>{localParticipant?.identity}</span>
         <span className="camera-type">
           {facingMode === 'user' ? 'Front' : 'Back'}
         </span>
       </div>
+
+      {/* Clip sync status indicator */}
+      {clipSync.isInitialized && (clipSync.stats.pending > 0 || clipSync.stats.uploading > 0 || clipSync.stats.failed > 0) && (
+        <div className="sync-status">
+          {clipSync.stats.uploading > 0 && (
+            <span className="sync-uploading">
+              <span className="sync-icon">⬆️</span>
+              <span>Uploading {clipSync.stats.uploading}</span>
+            </span>
+          )}
+          {clipSync.stats.pending > 0 && clipSync.stats.uploading === 0 && (
+            <span className="sync-pending">
+              <span className="sync-icon">📤</span>
+              <span>{clipSync.stats.pending} pending</span>
+            </span>
+          )}
+          {clipSync.stats.failed > 0 && (
+            <button className="sync-retry-btn" onClick={() => clipSync.retryFailed()}>
+              <span className="sync-icon">⚠️</span>
+              <span>{clipSync.stats.failed} failed - Tap to retry</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Viewer speaking indicator */}
       {viewerIsSpeaking && (

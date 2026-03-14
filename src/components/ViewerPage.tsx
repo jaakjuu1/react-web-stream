@@ -10,6 +10,11 @@ import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import { api } from '../lib/api';
 import { viewerRoomOptions } from '../lib/livekit';
 import { VideoTile } from './VideoTile';
+import { EventFeed } from './EventFeed';
+import { DetectionSettings } from './DetectionSettings';
+import { ClipList } from './ClipList';
+import { ClipPlayer } from './ClipPlayer';
+import type { Clip } from '../lib/api';
 
 export function ViewerPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -81,6 +86,12 @@ function ViewerInterface() {
   const [portraitMode, setPortraitMode] = useState(false);
   // Push-to-talk state
   const [isTalking, setIsTalking] = useState(false);
+  // Sidebar visibility
+  const [showSidebar, setShowSidebar] = useState(true);
+  // Sidebar tab
+  const [sidebarTab, setSidebarTab] = useState<'events' | 'clips' | 'settings'>('events');
+  // Clip player
+  const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
 
   // Disable microphone on mount (start silent)
   useEffect(() => {
@@ -172,7 +183,7 @@ function ViewerInterface() {
   });
 
   return (
-    <div className="viewer-interface">
+    <div className={`viewer-interface ${showSidebar ? 'with-sidebar' : ''}`}>
       {/* Header bar with status and controls */}
       <div className="viewer-header">
         <div className={`connection-status ${connectionState.toLowerCase()}`}>
@@ -188,43 +199,92 @@ function ViewerInterface() {
           </span>
         </div>
 
-        {/* Portrait mode toggle for 9:16 feeds */}
-        <button
-          className={`portrait-toggle ${portraitMode ? 'active' : ''}`}
-          onClick={togglePortraitMode}
-          title={portraitMode ? 'Switch to landscape (16:9)' : 'Switch to portrait (9:16)'}
-        >
-          <span className="portrait-icon">
-            {portraitMode ? '🖼️' : '📱'}
-          </span>
-          <span className="portrait-label">
-            {portraitMode ? '16:9' : '9:16'}
-          </span>
-        </button>
+        <div className="viewer-header-controls">
+          {/* Portrait mode toggle for 9:16 feeds */}
+          <button
+            className={`portrait-toggle ${portraitMode ? 'active' : ''}`}
+            onClick={togglePortraitMode}
+            title={portraitMode ? 'Switch to landscape (16:9)' : 'Switch to portrait (9:16)'}
+          >
+            <span className="portrait-icon">
+              {portraitMode ? '🖼️' : '📱'}
+            </span>
+            <span className="portrait-label">
+              {portraitMode ? '16:9' : '9:16'}
+            </span>
+          </button>
+
+          {/* Sidebar toggle */}
+          <button
+            className={`sidebar-toggle ${showSidebar ? 'active' : ''}`}
+            onClick={() => setShowSidebar(!showSidebar)}
+            title={showSidebar ? 'Hide sidebar' : 'Show sidebar'}
+          >
+            <span className="sidebar-icon">📊</span>
+          </button>
+        </div>
       </div>
 
-      <div
-        className={`video-grid ${pinnedParticipant ? 'has-pinned' : ''} cameras-${Math.min(cameraParticipants.length, 4)} ${portraitMode ? 'portrait-mode' : ''}`}
-      >
-        {sortedTracks.length === 0 ? (
-          <div className="no-cameras">
-            <p>Waiting for cameras to connect...</p>
-            <p className="hint">Open /camera on another device to start streaming</p>
+      <div className="viewer-content">
+        <div
+          className={`video-grid ${pinnedParticipant ? 'has-pinned' : ''} cameras-${Math.min(cameraParticipants.length, 4)} ${portraitMode ? 'portrait-mode' : ''}`}
+        >
+          {sortedTracks.length === 0 ? (
+            <div className="no-cameras">
+              <p>Waiting for cameras to connect...</p>
+              <p className="hint">Open /camera on another device to start streaming</p>
+            </div>
+          ) : (
+            sortedTracks.map(({ participant, videoTrack, audioTrack }) => (
+              <VideoTile
+                key={participant.identity}
+                participant={participant}
+                videoTrack={videoTrack}
+                audioTrack={audioTrack}
+                isPinned={participant.identity === pinnedParticipant}
+                isMuted={mutedParticipants.has(participant.identity)}
+                onPin={() => handlePin(participant.identity)}
+                onToggleMute={() => handleToggleMute(participant.identity)}
+                portraitMode={portraitMode}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Sidebar with tabs */}
+        {showSidebar && (
+          <div className="viewer-sidebar">
+            <div className="sidebar-tabs">
+              <button
+                className={`sidebar-tab ${sidebarTab === 'events' ? 'active' : ''}`}
+                onClick={() => setSidebarTab('events')}
+              >
+                Events
+              </button>
+              <button
+                className={`sidebar-tab ${sidebarTab === 'clips' ? 'active' : ''}`}
+                onClick={() => setSidebarTab('clips')}
+              >
+                Clips
+              </button>
+              <button
+                className={`sidebar-tab ${sidebarTab === 'settings' ? 'active' : ''}`}
+                onClick={() => setSidebarTab('settings')}
+              >
+                Settings
+              </button>
+            </div>
+            <div className="sidebar-content">
+              {sidebarTab === 'events' && <EventFeed room={room} />}
+              {sidebarTab === 'clips' && <ClipList onPlayClip={setSelectedClip} />}
+              {sidebarTab === 'settings' && <DetectionSettings room={room} />}
+            </div>
           </div>
-        ) : (
-          sortedTracks.map(({ participant, videoTrack, audioTrack }) => (
-            <VideoTile
-              key={participant.identity}
-              participant={participant}
-              videoTrack={videoTrack}
-              audioTrack={audioTrack}
-              isPinned={participant.identity === pinnedParticipant}
-              isMuted={mutedParticipants.has(participant.identity)}
-              onPin={() => handlePin(participant.identity)}
-              onToggleMute={() => handleToggleMute(participant.identity)}
-              portraitMode={portraitMode}
-            />
-          ))
+        )}
+
+        {/* Clip player modal */}
+        {selectedClip && (
+          <ClipPlayer clip={selectedClip} onClose={() => setSelectedClip(null)} />
         )}
       </div>
 

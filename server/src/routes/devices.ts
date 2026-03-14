@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
 
 export const devicesRouter = Router();
 
-devicesRouter.use(authMiddleware);
+devicesRouter.use(clerkAuth());
 
 const updateDeviceSchema = z.object({
   name: z.string().min(1).max(50).optional(),
@@ -13,7 +13,7 @@ const updateDeviceSchema = z.object({
 });
 
 // List user's devices
-devicesRouter.get('/', async (req: AuthRequest, res) => {
+devicesRouter.get('/', async (req: ClerkRequest, res) => {
   try {
     const devices = await prisma.device.findMany({
       where: { userId: req.userId },
@@ -31,7 +31,7 @@ devicesRouter.get('/', async (req: AuthRequest, res) => {
 });
 
 // Get device details
-devicesRouter.get('/:id', async (req: AuthRequest, res) => {
+devicesRouter.get('/:id', async (req: ClerkRequest, res) => {
   try {
     const device = await prisma.device.findFirst({
       where: {
@@ -55,7 +55,7 @@ devicesRouter.get('/:id', async (req: AuthRequest, res) => {
 });
 
 // Update device (name or room assignment)
-devicesRouter.patch('/:id', async (req: AuthRequest, res) => {
+devicesRouter.patch('/:id', async (req: ClerkRequest, res) => {
   try {
     const updates = updateDeviceSchema.parse(req.body);
 
@@ -97,7 +97,7 @@ devicesRouter.patch('/:id', async (req: AuthRequest, res) => {
 });
 
 // Delete device
-devicesRouter.delete('/:id', async (req: AuthRequest, res) => {
+devicesRouter.delete('/:id', async (req: ClerkRequest, res) => {
   try {
     const result = await prisma.device.deleteMany({
       where: {
@@ -118,7 +118,7 @@ devicesRouter.delete('/:id', async (req: AuthRequest, res) => {
 });
 
 // Update device online status (called by camera)
-devicesRouter.post('/:id/heartbeat', async (req: AuthRequest, res) => {
+devicesRouter.post('/:id/heartbeat', async (req: ClerkRequest, res) => {
   try {
     await prisma.device.updateMany({
       where: {
