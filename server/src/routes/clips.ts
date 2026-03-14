@@ -14,9 +14,18 @@ import {
 
 export const clipsRouter = Router();
 
+const ALLOWED_MIME_TYPES = ['video/webm', 'video/mp4', 'video/ogg'];
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only video files are accepted.'));
+    }
+  },
 });
 
 // All routes require authentication
@@ -87,11 +96,19 @@ clipsRouter.post('/', upload.single('video'), async (req: ClerkRequest, res) => 
   }
 });
 
+const listClipsSchema = z.object({
+  roomId: z.string().optional(),
+  deviceId: z.string().optional(),
+  type: z.enum(['motion', 'sound']).optional(),
+  limit: z.coerce.number().min(1).max(100).default(50),
+  offset: z.coerce.number().min(0).default(0),
+});
+
 // GET /api/clips - List clips for user's rooms
 clipsRouter.get('/', async (req: ClerkRequest, res) => {
   try {
     const userId = req.userId!;
-    const { roomId, deviceId, type, limit = '50', offset = '0' } = req.query;
+    const parsed = listClipsSchema.parse(req.query);
 
     const where: {
       userId: string;
@@ -100,16 +117,16 @@ clipsRouter.get('/', async (req: ClerkRequest, res) => {
       detectionType?: string;
     } = { userId };
 
-    if (typeof roomId === 'string') where.roomId = roomId;
-    if (typeof deviceId === 'string') where.deviceId = deviceId;
-    if (typeof type === 'string') where.detectionType = type;
+    if (parsed.roomId) where.roomId = parsed.roomId;
+    if (parsed.deviceId) where.deviceId = parsed.deviceId;
+    if (parsed.type) where.detectionType = parsed.type;
 
     const [clips, total] = await Promise.all([
       prisma.clip.findMany({
         where,
         orderBy: { recordedAt: 'desc' },
-        take: parseInt(limit as string),
-        skip: parseInt(offset as string),
+        take: parsed.limit,
+        skip: parsed.offset,
         include: {
           room: { select: { id: true, name: true } },
         },
@@ -120,10 +137,13 @@ clipsRouter.get('/', async (req: ClerkRequest, res) => {
     res.json({
       clips,
       total,
-      limit: parseInt(limit as string),
-      offset: parseInt(offset as string),
+      limit: parsed.limit,
+      offset: parsed.offset,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
     console.error('[Clips] List error:', error);
     res.status(500).json({ error: 'Failed to fetch clips' });
   }
@@ -192,12 +212,18 @@ clipsRouter.get('/file/{*path}', async (req: ClerkRequest, res) => {
       return res.status(404).json({ error: 'Clip not found' });
     }
 
+    // Only serve video MIME types to prevent stored XSS
+    if (!ALLOWED_MIME_TYPES.includes(clip.mimeType)) {
+      return res.status(403).json({ error: 'Invalid clip type' });
+    }
+
     const stats = await getClipStats(storagePath);
     const stream = getClipStream(storagePath);
 
     res.setHeader('Content-Type', clip.mimeType);
     res.setHeader('Content-Length', stats.size);
     res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
 
     stream.pipe(res);
   } catch (error) {

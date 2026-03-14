@@ -64,6 +64,15 @@ function buildKey(userId: string, roomId: string, mimeType: string): string {
   return `clips/${userId}/${roomId}/${date}/${randomUUID()}${ext}`;
 }
 
+/** Prevent path traversal by ensuring resolved path stays within base. */
+function safePath(basePath: string, userPath: string): string {
+  const resolved = path.resolve(basePath, userPath);
+  if (!resolved.startsWith(path.resolve(basePath) + path.sep) && resolved !== path.resolve(basePath)) {
+    throw new Error('Invalid storage path');
+  }
+  return resolved;
+}
+
 // ── Upload ──────────────────────────────────────────────────────────
 
 export async function uploadClip(
@@ -88,7 +97,7 @@ export async function uploadClip(
   }
 
   // Local storage
-  const fullPath = path.join(STORAGE_PATH, key);
+  const fullPath = safePath(STORAGE_PATH, key);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, file);
   return { path: key, size: file.length };
@@ -109,7 +118,7 @@ export async function deleteClip(storagePath: string): Promise<void> {
   }
 
   // Local storage
-  const fullPath = path.join(STORAGE_PATH, storagePath);
+  const fullPath = safePath(STORAGE_PATH, storagePath);
   await fs.unlink(fullPath).catch(() => {});
 }
 
@@ -134,40 +143,13 @@ export async function getPresignedUrl(
   );
 }
 
-// ── Presigned Upload URL (R2 only) ──────────────────────────────────
-
-export async function getPresignedUploadUrl(
-  userId: string,
-  roomId: string,
-  mimeType: string,
-  expiresIn = 3600
-): Promise<{ url: string; key: string }> {
-  if (STORAGE_TYPE !== 'r2') {
-    throw new Error('Presigned upload URLs are only available with R2 storage');
-  }
-
-  const key = buildKey(userId, roomId, mimeType);
-  const client = getR2Client();
-  const url = await getSignedUrl(
-    client,
-    new PutObjectCommand({
-      Bucket: getR2Bucket(),
-      Key: key,
-      ContentType: mimeType,
-    }),
-    { expiresIn }
-  );
-
-  return { url, key };
-}
-
 // ── Local-only helpers (for streaming fallback) ─────────────────────
 
 export function getClipStream(storagePath: string): ReadStream {
   if (STORAGE_TYPE !== 'local') {
     throw new Error('getClipStream is only available with local storage');
   }
-  const fullPath = path.join(STORAGE_PATH, storagePath);
+  const fullPath = safePath(STORAGE_PATH, storagePath);
   return createReadStream(fullPath);
 }
 
@@ -177,7 +159,7 @@ export async function getClipStats(
   if (STORAGE_TYPE !== 'local') {
     throw new Error('getClipStats is only available with local storage');
   }
-  const fullPath = path.join(STORAGE_PATH, storagePath);
+  const fullPath = safePath(STORAGE_PATH, storagePath);
   const stats = await fs.stat(fullPath);
   return { size: stats.size };
 }

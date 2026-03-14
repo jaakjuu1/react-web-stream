@@ -31,7 +31,7 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || true, // Allow all origins in production single-container setup
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
 
@@ -100,11 +100,6 @@ const HOST = process.env.HOST || '0.0.0.0';
 const server = app.listen(Number(PORT), HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT}`);
   console.log('Server is listening, PID:', process.pid);
-
-  // Heartbeat to show server is alive
-  setInterval(() => {
-    console.log('Heartbeat - server still running at', new Date().toISOString());
-  }, 5000);
 });
 
 server.on('error', (err) => {

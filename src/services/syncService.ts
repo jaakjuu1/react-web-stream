@@ -183,11 +183,9 @@ class SyncService {
 
   /** Get IDs only — no blob deserialization. */
   private async getPendingClipIds(): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-      const tx = this.db!.transaction(STORE_NAME, 'readonly');
-      const index = tx.objectStore(STORE_NAME).index('syncStatus');
-      resolve(getKeysByIndex(index, 'pending'));
-    });
+    const tx = this.db!.transaction(STORE_NAME, 'readonly');
+    const index = tx.objectStore(STORE_NAME).index('syncStatus');
+    return getKeysByIndex(index, 'pending');
   }
 
   /** Load a single clip by ID (including blob). */
