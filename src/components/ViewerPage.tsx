@@ -38,7 +38,7 @@ export function ViewerPage() {
           <h2>Connection Error</h2>
           <p>{error}</p>
           <p className="hint">
-            Make sure the backend server is running on port 3001.
+            Make sure the backend server is running on port 3001
           </p>
         </div>
       </div>
