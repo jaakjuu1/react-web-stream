@@ -1,7 +1,7 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
 import { generateLiveKitToken, getLiveKitUrl } from '../services/livekit.service.js';
 import crypto from 'crypto';
 
@@ -17,7 +17,7 @@ const viewerTokenSchema = z.object({
 });
 
 // Get token for camera (publishing)
-tokensRouter.post('/camera', authMiddleware, async (req: AuthRequest, res) => {
+tokensRouter.post('/camera', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const { roomId, deviceName } = cameraTokenSchema.parse(req.body);
 
@@ -75,7 +75,7 @@ tokensRouter.post('/camera', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // Get token for viewer (subscribing)
-tokensRouter.post('/viewer', authMiddleware, async (req: AuthRequest, res) => {
+tokensRouter.post('/viewer', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const { roomId } = viewerTokenSchema.parse(req.body);
 

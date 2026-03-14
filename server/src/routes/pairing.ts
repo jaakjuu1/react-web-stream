@@ -1,9 +1,9 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
 import { generateLiveKitToken, getLiveKitUrl } from '../services/livekit.service.js';
 
 export const pairingRouter = Router();
@@ -18,7 +18,7 @@ const completePairingSchema = z.object({
 });
 
 // Generate pairing code for a room (requires auth)
-pairingRouter.post('/generate', authMiddleware, async (req: AuthRequest, res) => {
+pairingRouter.post('/generate', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const { roomId } = generatePairingSchema.parse(req.body);
 
@@ -147,7 +147,7 @@ pairingRouter.post('/complete', async (req, res) => {
 });
 
 // Check pairing status (viewer polls this)
-pairingRouter.get('/status/:code', authMiddleware, async (req: AuthRequest, res) => {
+pairingRouter.get('/status/:code', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const pairingCode = await prisma.pairingCode.findFirst({
       where: {

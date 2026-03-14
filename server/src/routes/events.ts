@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
 import { sendDetectionNotification, isConfigured } from '../services/pushNotifications.js';
 
 export const eventsRouter = Router();
 
 // All routes require authentication
-eventsRouter.use(authMiddleware);
+eventsRouter.use(clerkAuth());
 
 const createEventSchema = z.object({
   roomId: z.string(),
@@ -34,7 +34,7 @@ const updateEventSchema = z.object({
 });
 
 // List events with filtering
-eventsRouter.get('/', async (req: AuthRequest, res) => {
+eventsRouter.get('/', async (req: ClerkRequest, res) => {
   try {
     const params = listEventsSchema.parse(req.query);
 
@@ -112,7 +112,7 @@ eventsRouter.get('/', async (req: AuthRequest, res) => {
 });
 
 // Get single event
-eventsRouter.get('/:id', async (req: AuthRequest, res) => {
+eventsRouter.get('/:id', async (req: ClerkRequest, res) => {
   try {
     const event = await prisma.detectionEvent.findFirst({
       where: {
@@ -153,7 +153,7 @@ eventsRouter.get('/:id', async (req: AuthRequest, res) => {
 });
 
 // Create event
-eventsRouter.post('/', async (req: AuthRequest, res) => {
+eventsRouter.post('/', async (req: ClerkRequest, res) => {
   try {
     const data = createEventSchema.parse(req.body);
 
@@ -225,7 +225,7 @@ eventsRouter.post('/', async (req: AuthRequest, res) => {
 });
 
 // Update event (mark as false positive, etc.)
-eventsRouter.patch('/:id', async (req: AuthRequest, res) => {
+eventsRouter.patch('/:id', async (req: ClerkRequest, res) => {
   try {
     const data = updateEventSchema.parse(req.body);
 
@@ -268,7 +268,7 @@ eventsRouter.patch('/:id', async (req: AuthRequest, res) => {
 });
 
 // Delete event
-eventsRouter.delete('/:id', async (req: AuthRequest, res) => {
+eventsRouter.delete('/:id', async (req: ClerkRequest, res) => {
   try {
     // Verify user owns the event's room
     const existing = await prisma.detectionEvent.findFirst({
@@ -294,7 +294,7 @@ eventsRouter.delete('/:id', async (req: AuthRequest, res) => {
 });
 
 // Get event statistics for a room
-eventsRouter.get('/stats/:roomId', async (req: AuthRequest, res) => {
+eventsRouter.get('/stats/:roomId', async (req: ClerkRequest, res) => {
   try {
     // Verify user owns the room
     const room = await prisma.room.findFirst({

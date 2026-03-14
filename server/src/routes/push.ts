@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
 import {
   getVapidPublicKey,
   isConfigured,
@@ -26,7 +26,7 @@ pushRouter.get('/vapid-public-key', (req, res) => {
 });
 
 // All other routes require authentication
-pushRouter.use(authMiddleware);
+pushRouter.use(clerkAuth());
 
 const subscribeSchema = z.object({
   endpoint: z.string().url(),
@@ -37,7 +37,7 @@ const subscribeSchema = z.object({
 });
 
 // Subscribe to push notifications
-pushRouter.post('/subscribe', async (req: AuthRequest, res) => {
+pushRouter.post('/subscribe', async (req: ClerkRequest, res) => {
   try {
     const { endpoint, keys } = subscribeSchema.parse(req.body);
 
@@ -71,7 +71,7 @@ pushRouter.post('/subscribe', async (req: AuthRequest, res) => {
 });
 
 // Unsubscribe from push notifications
-pushRouter.delete('/subscribe', async (req: AuthRequest, res) => {
+pushRouter.delete('/subscribe', async (req: ClerkRequest, res) => {
   try {
     const { endpoint } = z.object({ endpoint: z.string().url() }).parse(req.body);
 
@@ -97,7 +97,7 @@ pushRouter.delete('/subscribe', async (req: AuthRequest, res) => {
 });
 
 // Get user's subscriptions
-pushRouter.get('/subscriptions', async (req: AuthRequest, res) => {
+pushRouter.get('/subscriptions', async (req: ClerkRequest, res) => {
   try {
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId: req.userId },
@@ -116,7 +116,7 @@ pushRouter.get('/subscriptions', async (req: AuthRequest, res) => {
 });
 
 // Test push notification (for debugging)
-pushRouter.post('/test', async (req: AuthRequest, res) => {
+pushRouter.post('/test', async (req: ClerkRequest, res) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({

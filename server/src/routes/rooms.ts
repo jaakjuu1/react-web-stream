@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
 import crypto from 'crypto';
 
 export const roomsRouter = Router();
 
 // All routes require authentication
-roomsRouter.use(authMiddleware);
+roomsRouter.use(clerkAuth());
 
 const createRoomSchema = z.object({
   name: z.string().min(1).max(50),
@@ -18,7 +18,7 @@ const updateRoomSchema = z.object({
 });
 
 // List user's rooms
-roomsRouter.get('/', async (req: AuthRequest, res) => {
+roomsRouter.get('/', async (req: ClerkRequest, res) => {
   try {
     const rooms = await prisma.room.findMany({
       where: { userId: req.userId },
@@ -44,7 +44,7 @@ roomsRouter.get('/', async (req: AuthRequest, res) => {
 });
 
 // Create room
-roomsRouter.post('/', async (req: AuthRequest, res) => {
+roomsRouter.post('/', async (req: ClerkRequest, res) => {
   try {
     const { name } = createRoomSchema.parse(req.body);
 
@@ -76,7 +76,7 @@ roomsRouter.post('/', async (req: AuthRequest, res) => {
 });
 
 // Get room details
-roomsRouter.get('/:id', async (req: AuthRequest, res) => {
+roomsRouter.get('/:id', async (req: ClerkRequest, res) => {
   try {
     const room = await prisma.room.findFirst({
       where: {
@@ -117,7 +117,7 @@ roomsRouter.get('/:id', async (req: AuthRequest, res) => {
 });
 
 // Update room
-roomsRouter.patch('/:id', async (req: AuthRequest, res) => {
+roomsRouter.patch('/:id', async (req: ClerkRequest, res) => {
   try {
     const { name } = updateRoomSchema.parse(req.body);
 
@@ -148,7 +148,7 @@ roomsRouter.patch('/:id', async (req: AuthRequest, res) => {
 });
 
 // Delete room
-roomsRouter.delete('/:id', async (req: AuthRequest, res) => {
+roomsRouter.delete('/:id', async (req: ClerkRequest, res) => {
   try {
     const result = await prisma.room.deleteMany({
       where: {
