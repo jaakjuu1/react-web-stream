@@ -35,3 +35,6 @@ server/prisma/dev.db-journal
 *.njsproj
 *.sln
 *.sw?
+
+# AI 
+.claude/*
