@@ -62,3 +62,11 @@ jobs:
           build-args: |
             VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_LIVEKIT_URL=${{ secrets.VITE_LIVEKIT_URL }}
+
+      - name: Deploy to Dokploy
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          curl -fsSL -X POST "${{ secrets.DOKPLOY_URL }}/api/application.redeploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{"applicationId": "${{ secrets.DOKPLOY_APP_ID }}"}'
