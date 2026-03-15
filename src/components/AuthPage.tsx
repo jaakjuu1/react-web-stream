@@ -84,7 +84,7 @@ export function AuthPage() {
           </Link>
 
           <h1 className="auth-heading">
-            {isSignUp ? 'Create your account' : 'Welcome back'}
+            {isSignUp ? 'Create your account' : 'Welcome to Pet Portal'}
           </h1>
           <p className="auth-subheading">
             {isSignUp
