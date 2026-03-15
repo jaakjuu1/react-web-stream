@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { clerkMiddleware } from '@clerk/express';
 import { authRouter } from './routes/auth.js';
 import { roomsRouter } from './routes/rooms.js';
@@ -34,6 +35,29 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
+
+// Clerk Frontend API proxy — bypasses CNAME/SSL issues by routing
+// Clerk requests through our own server at /__clerk/*
+function getClerkFapiUrl(): string {
+  const key = process.env.CLERK_PUBLISHABLE_KEY || '';
+  try {
+    const encoded = key.split('_').slice(2).join('_');
+    const decoded = Buffer.from(encoded, 'base64').toString('utf-8').replace(/\$$/, '');
+    return `https://${decoded}`;
+  } catch {
+    return '';
+  }
+}
+
+const clerkFapiUrl = getClerkFapiUrl();
+if (clerkFapiUrl) {
+  console.log('Clerk FAPI proxy enabled: /__clerk/* →', clerkFapiUrl);
+  app.use('/__clerk', createProxyMiddleware({
+    target: clerkFapiUrl,
+    changeOrigin: true,
+    pathRewrite: { '^/__clerk': '' },
+  }));
+}
 
 // Stripe webhook needs raw body - must come BEFORE express.json()
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
