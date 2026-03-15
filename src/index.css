@@ -3253,55 +3253,144 @@ body {
   line-height: 1.5;
 }
 
-/* Clerk form area — override Clerk internals */
+/* Clerk form area */
 .auth-form-area {
   margin-bottom: 1.25rem;
 }
 
-/* Force Clerk card to be transparent and borderless */
-.auth-form-area .cl-rootBox {
+/* Clerk element overrides via appearance class names */
+.ck-root {
   width: 100%;
 }
 
-.auth-form-area .cl-card {
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  padding: 0 !important;
+.ck-card {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  width: 100%;
 }
 
-.auth-form-area .cl-cardBox {
-  box-shadow: none !important;
-  border: none !important;
-  width: 100% !important;
+.ck-card-box {
+  box-shadow: none;
+  border: none;
+  width: 100%;
 }
 
-/* Ensure social buttons have proper hover */
-.auth-form-area .cl-socialButtonsBlockButton:hover {
-  background: var(--bg-elevated) !important;
-  border-color: var(--border-strong) !important;
+.ck-header {
+  display: none;
 }
 
-/* Input focus ring */
-.auth-form-area .cl-formFieldInput:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1) !important;
+.ck-social-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-/* Primary button hover */
-.auth-form-area .cl-formButtonPrimary:hover {
-  background: var(--accent-dim) !important;
+.ck-social-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.ck-social-btn-text {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.ck-divider-line {
+  background: var(--border);
+}
+
+.ck-divider-text {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.ck-label {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ck-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ck-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.ck-btn-primary {
+  background: var(--accent);
+  color: var(--bg-void);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  padding: 0.75rem 1.5rem;
+  transition: all 0.2s ease;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ck-btn-primary:hover {
+  background: var(--accent-dim);
   transform: translateY(-1px);
 }
 
-.auth-form-area .cl-formButtonPrimary:active {
+.ck-btn-primary:active {
   transform: translateY(0);
 }
 
-/* Powered by Clerk footer — hide if it shows through */
-.auth-form-area .cl-footer,
-.auth-form-area .cl-footerAction {
-  display: none !important;
+.ck-footer {
+  display: none;
+}
+
+.ck-identity-preview {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+}
+
+.ck-identity-text {
+  color: var(--text-primary);
+}
+
+.ck-identity-edit {
+  color: var(--accent);
+}
+
+.ck-field-action {
+  color: var(--accent);
+}
+
+.ck-alert-text {
+  color: var(--error);
+}
+
+.ck-password-toggle {
+  color: var(--text-muted);
+}
+
+.ck-otp-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.ck-resend-link {
+  color: var(--accent);
+}
+
+.ck-back-link {
+  color: var(--accent);
 }
 
 /* Mode switch */

@@ -19,103 +19,28 @@ const clerkAppearance = {
     spacingUnit: '1rem',
   },
   elements: {
-    rootBox: {
-      width: '100%',
-    },
-    card: {
-      background: 'transparent',
-      boxShadow: 'none',
-      border: 'none',
-      padding: '0',
-      width: '100%',
-    },
-    cardBox: {
-      boxShadow: 'none',
-      border: 'none',
-      width: '100%',
-    },
-    header: {
-      display: 'none',
-    },
-    socialButtonsBlockButton: {
-      background: '#1a1a24',
-      border: '1px solid rgba(255, 255, 255, 0.08)',
-      color: '#f0f0f5',
-      fontWeight: '500',
-      transition: 'all 0.2s ease',
-    },
-    socialButtonsBlockButtonText: {
-      color: '#f0f0f5',
-      fontWeight: '500',
-    },
-    dividerLine: {
-      background: 'rgba(255, 255, 255, 0.08)',
-    },
-    dividerText: {
-      color: '#55556a',
-      fontSize: '0.8125rem',
-    },
-    formFieldLabel: {
-      color: '#8888a0',
-      fontSize: '0.8125rem',
-      fontWeight: '500',
-      letterSpacing: '0.02em',
-      textTransform: 'uppercase' as const,
-    },
-    formFieldInput: {
-      background: '#1a1a24',
-      border: '1px solid rgba(255, 255, 255, 0.08)',
-      color: '#f0f0f5',
-      fontSize: '0.9375rem',
-      padding: '0.75rem 1rem',
-      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-    },
-    formButtonPrimary: {
-      background: '#00d4ff',
-      color: '#050508',
-      fontWeight: '600',
-      fontSize: '0.9375rem',
-      padding: '0.75rem 1.5rem',
-      transition: 'all 0.2s ease',
-      textTransform: 'none' as const,
-      letterSpacing: '0',
-    },
-    footerAction: {
-      display: 'none',
-    },
-    footer: {
-      display: 'none',
-    },
-    identityPreview: {
-      background: '#1a1a24',
-      border: '1px solid rgba(255, 255, 255, 0.08)',
-    },
-    identityPreviewText: {
-      color: '#f0f0f5',
-    },
-    identityPreviewEditButton: {
-      color: '#00d4ff',
-    },
-    formFieldAction: {
-      color: '#00d4ff',
-    },
-    alertText: {
-      color: '#ff5252',
-    },
-    formFieldInputShowPasswordButton: {
-      color: '#55556a',
-    },
-    otpCodeFieldInput: {
-      background: '#1a1a24',
-      border: '1px solid rgba(255, 255, 255, 0.08)',
-      color: '#f0f0f5',
-    },
-    formResendCodeLink: {
-      color: '#00d4ff',
-    },
-    backLink: {
-      color: '#00d4ff',
-    },
+    rootBox: 'ck-root',
+    card: 'ck-card',
+    cardBox: 'ck-card-box',
+    header: 'ck-header',
+    socialButtonsBlockButton: 'ck-social-btn',
+    socialButtonsBlockButtonText: 'ck-social-btn-text',
+    dividerLine: 'ck-divider-line',
+    dividerText: 'ck-divider-text',
+    formFieldLabel: 'ck-label',
+    formFieldInput: 'ck-input',
+    formButtonPrimary: 'ck-btn-primary',
+    footerAction: 'ck-footer',
+    footer: 'ck-footer',
+    identityPreview: 'ck-identity-preview',
+    identityPreviewText: 'ck-identity-text',
+    identityPreviewEditButton: 'ck-identity-edit',
+    formFieldAction: 'ck-field-action',
+    alertText: 'ck-alert-text',
+    formFieldInputShowPasswordButton: 'ck-password-toggle',
+    otpCodeFieldInput: 'ck-otp-input',
+    formResendCodeLink: 'ck-resend-link',
+    backLink: 'ck-back-link',
   },
 } as const;
 
