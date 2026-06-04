@@ -52,3 +52,25 @@ jobs:
             VITE_LIVEKIT_URL=${{ secrets.VITE_LIVEKIT_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Hostinger
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy explicit SHA tag
+        env:
+          HOST: ${{ secrets.HOSTINGER_DEPLOY_HOST }}
+          PORT: ${{ secrets.HOSTINGER_DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.HOSTINGER_DEPLOY_USER }}
+          SSH_KEY: ${{ secrets.HOSTINGER_DEPLOY_SSH_KEY }}
+          STACK: streams-records
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          umask 077
+          echo "$SSH_KEY" > ~/.ssh/hostinger_deploy
+          chmod 600 ~/.ssh/hostinger_deploy
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/hostinger_deploy -p "$PORT" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$HOST" "github-deploy $STACK sha-${GITHUB_SHA}"
