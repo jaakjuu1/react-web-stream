@@ -72,5 +72,25 @@ jobs:
           umask 077
           echo "$SSH_KEY" > ~/.ssh/hostinger_deploy
           chmod 600 ~/.ssh/hostinger_deploy
-          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
-          ssh -i ~/.ssh/hostinger_deploy -p "$PORT" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$HOST" "github-deploy $STACK sha-${GITHUB_SHA}"
+
+          for attempt in 1 2 3 4 5; do
+            if ssh-keyscan -T 10 -p "$PORT" "$HOST" >> ~/.ssh/known_hosts; then
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              echo "ssh-keyscan failed after $attempt attempts" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          for attempt in 1 2 3; do
+            if ssh -i ~/.ssh/hostinger_deploy -p "$PORT"               -o IdentitiesOnly=yes               -o StrictHostKeyChecking=yes               -o ConnectTimeout=20               "$DEPLOY_USER@$HOST" "github-deploy $STACK sha-${GITHUB_SHA}"; then
+              break
+            fi
+            if [ "$attempt" = "3" ]; then
+              echo "deploy SSH command failed after $attempt attempts" >&2
+              exit 1
+            fi
+            sleep 15
+          done
