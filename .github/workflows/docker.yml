@@ -1,11 +1,9 @@
-name: Build and Deploy
+name: Build GHCR Image
 
 on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
@@ -17,6 +15,7 @@ env:
 
 jobs:
   build-and-push:
+    name: Build app image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -37,44 +36,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Build image and push on main
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
           build-args: |
             VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_LIVEKIT_URL=${{ secrets.VITE_LIVEKIT_URL }}
-
-  deploy-dokploy:
-    needs: [build-and-push]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Deploy via Dokploy API
-        run: |
-          curl -sf -X POST \
-            'https://admin.valuebit.net/api/application.deploy' \
-            -H 'accept: application/json' \
-            -H 'Content-Type: application/json' \
-            -H 'x-api-key: ${{ secrets.DOKPLOY_API_KEY }}' \
-            -d '{"applicationId": "YeBKKH6Y3E-k4Zj0RG3uE"}'
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
