@@ -65,6 +65,7 @@ jobs:
           PORT: ${{ secrets.HOSTINGER_DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.HOSTINGER_DEPLOY_USER }}
           SSH_KEY: ${{ secrets.HOSTINGER_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HOSTINGER_DEPLOY_KNOWN_HOSTS }}
           STACK: streams-records
         run: |
           set -euo pipefail
@@ -73,16 +74,8 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/hostinger_deploy
           chmod 600 ~/.ssh/hostinger_deploy
 
-          for attempt in 1 2 3 4 5; do
-            if ssh-keyscan -T 10 -p "$PORT" "$HOST" >> ~/.ssh/known_hosts; then
-              break
-            fi
-            if [ "$attempt" = "5" ]; then
-              echo "ssh-keyscan failed after $attempt attempts" >&2
-              exit 1
-            fi
-            sleep 5
-          done
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
           for attempt in 1 2 3; do
             if ssh -i ~/.ssh/hostinger_deploy -p "$PORT"               -o IdentitiesOnly=yes               -o StrictHostKeyChecking=yes               -o ConnectTimeout=20               "$DEPLOY_USER@$HOST" "github-deploy $STACK sha-${GITHUB_SHA}"; then
