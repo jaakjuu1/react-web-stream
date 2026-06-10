@@ -56,6 +56,9 @@ export function createApp(): express.Express {
   // Stripe webhook needs raw body - must come BEFORE express.json()
   app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
+  // Clerk (Svix) webhook also verifies against the raw body
+  app.use('/api/auth/clerk-webhook', express.raw({ type: 'application/json' }));
+
   app.use(express.json());
 
   // Clerk authentication middleware
