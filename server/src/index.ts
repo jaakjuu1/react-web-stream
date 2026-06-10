@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -29,6 +30,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Behind a reverse proxy in production; needed for correct client IPs
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({
@@ -79,12 +83,26 @@ app.use((req, res, next) => {
   next();
 });
 
+// Rate limits on endpoints that mint credentials or accept guessable codes
+const tokenLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const pairingLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/rooms', roomsRouter);
 app.use('/api/devices', devicesRouter);
-app.use('/api/tokens', tokensRouter);
-app.use('/api/pairing', pairingRouter);
+app.use('/api/tokens', tokenLimiter, tokensRouter);
+app.use('/api/pairing', pairingLimiter, pairingRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/push', pushRouter);
 app.use('/api/clips', clipsRouter);

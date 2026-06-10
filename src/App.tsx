@@ -36,15 +36,11 @@ function AppContent() {
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/pricing" element={<PricingPage />} />
 
+      {/* Camera runs on paired phones without a signed-in session;
+          authorization comes from the single-use pairing code */}
+      <Route path="/camera" element={<CameraPage />} />
+
       {/* Protected routes - require auth + subscription */}
-      <Route
-        path="/camera"
-        element={
-          <ProtectedRoute requireSubscription>
-            <CameraPage />
-          </ProtectedRoute>
-        }
-      />
       <Route
         path="/viewer"
         element={

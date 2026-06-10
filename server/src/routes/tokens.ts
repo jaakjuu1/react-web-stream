@@ -2,6 +2,8 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
+import { requireActiveSubscription } from '../middleware/subscription.js';
+import { deviceAuth, type DeviceRequest } from '../middleware/deviceAuth.js';
 import { generateLiveKitToken, getLiveKitUrl } from '../services/livekit.service.js';
 import crypto from 'crypto';
 
@@ -17,7 +19,7 @@ const viewerTokenSchema = z.object({
 });
 
 // Get token for camera (publishing)
-tokensRouter.post('/camera', clerkAuth(), async (req: ClerkRequest, res: Response) => {
+tokensRouter.post('/camera', clerkAuth(), requireActiveSubscription(), async (req: ClerkRequest, res: Response) => {
   try {
     const { roomId, deviceName } = cameraTokenSchema.parse(req.body);
 
@@ -75,7 +77,7 @@ tokensRouter.post('/camera', clerkAuth(), async (req: ClerkRequest, res: Respons
 });
 
 // Get token for viewer (subscribing)
-tokensRouter.post('/viewer', clerkAuth(), async (req: ClerkRequest, res: Response) => {
+tokensRouter.post('/viewer', clerkAuth(), requireActiveSubscription(), async (req: ClerkRequest, res: Response) => {
   try {
     const { roomId } = viewerTokenSchema.parse(req.body);
 
@@ -111,8 +113,47 @@ tokensRouter.post('/viewer', clerkAuth(), async (req: ClerkRequest, res: Respons
   }
 });
 
-// Demo tokens (no auth required) - for development/testing
+// Get a fresh camera token using paired-device credentials.
+// Used by cameras on reload and when the LiveKit token expires.
+tokensRouter.post('/device', deviceAuth(), async (req: DeviceRequest, res: Response) => {
+  try {
+    const device = req.device!;
+
+    const token = await generateLiveKitToken({
+      roomName: device.livekitRoom,
+      participantName: device.participantId,
+      role: 'camera',
+    });
+
+    await prisma.device.update({
+      where: { id: device.id },
+      data: { isOnline: true, lastSeen: new Date() },
+    });
+
+    res.json({
+      token,
+      livekitUrl: getLiveKitUrl(),
+      roomName: device.livekitRoom,
+      roomId: device.roomId,
+      participantId: device.participantId,
+      deviceId: device.id,
+      deviceName: device.name,
+    });
+  } catch (error) {
+    console.error('Device token error:', error);
+    res.status(500).json({ error: 'Failed to generate token' });
+  }
+});
+
+// Demo tokens (no auth required) - blocked in production unless explicitly enabled
+function demoTokensEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production' || process.env.ENABLE_DEMO_TOKENS === 'true';
+}
+
 tokensRouter.post('/demo/camera', async (req, res) => {
+  if (!demoTokensEnabled()) {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     const participantId = `cam_${crypto.randomBytes(4).toString('hex')}`;
 
@@ -135,6 +176,9 @@ tokensRouter.post('/demo/camera', async (req, res) => {
 });
 
 tokensRouter.post('/demo/viewer', async (req, res) => {
+  if (!demoTokensEnabled()) {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     const participantId = `viewer_${crypto.randomBytes(4).toString('hex')}`;
 

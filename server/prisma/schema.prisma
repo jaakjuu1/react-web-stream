@@ -51,6 +51,7 @@ model Device {
   name          String
   deviceType    String    @default("mobile")
   participantId String    @unique
+  secretHash    String?
   lastSeen      DateTime?
   isOnline      Boolean   @default(false)
   createdAt     DateTime  @default(now())

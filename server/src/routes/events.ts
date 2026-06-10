@@ -1,13 +1,14 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
+import { clerkOrDeviceAuth, type DeviceRequest } from '../middleware/deviceAuth.js';
 import { sendDetectionNotification, isConfigured } from '../services/pushNotifications.js';
 
 export const eventsRouter = Router();
 
-// All routes require authentication
-eventsRouter.use(clerkAuth());
+// Event creation accepts paired-device credentials (cameras have no Clerk
+// session); all other routes attach clerkAuth() individually below.
 
 const createEventSchema = z.object({
   roomId: z.string(),
@@ -34,7 +35,7 @@ const updateEventSchema = z.object({
 });
 
 // List events with filtering
-eventsRouter.get('/', async (req: ClerkRequest, res) => {
+eventsRouter.get('/', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const params = listEventsSchema.parse(req.query);
 
@@ -112,7 +113,7 @@ eventsRouter.get('/', async (req: ClerkRequest, res) => {
 });
 
 // Get single event
-eventsRouter.get('/:id', async (req: ClerkRequest, res) => {
+eventsRouter.get('/:id', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const event = await prisma.detectionEvent.findFirst({
       where: {
@@ -152,10 +153,15 @@ eventsRouter.get('/:id', async (req: ClerkRequest, res) => {
   }
 });
 
-// Create event
-eventsRouter.post('/', async (req: ClerkRequest, res) => {
+// Create event (Clerk session or paired-device credentials)
+eventsRouter.post('/', clerkOrDeviceAuth(), async (req: DeviceRequest, res: Response) => {
   try {
     const data = createEventSchema.parse(req.body);
+
+    // Paired devices may only report events for their own room
+    if (req.device && data.roomId !== req.device.roomId) {
+      return res.status(403).json({ error: 'Device not authorized for this room' });
+    }
 
     // Verify user owns the room
     const room = await prisma.room.findFirst({
@@ -225,7 +231,7 @@ eventsRouter.post('/', async (req: ClerkRequest, res) => {
 });
 
 // Update event (mark as false positive, etc.)
-eventsRouter.patch('/:id', async (req: ClerkRequest, res) => {
+eventsRouter.patch('/:id', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const data = updateEventSchema.parse(req.body);
 
@@ -268,7 +274,7 @@ eventsRouter.patch('/:id', async (req: ClerkRequest, res) => {
 });
 
 // Delete event
-eventsRouter.delete('/:id', async (req: ClerkRequest, res) => {
+eventsRouter.delete('/:id', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     // Verify user owns the event's room
     const existing = await prisma.detectionEvent.findFirst({
@@ -294,7 +300,7 @@ eventsRouter.delete('/:id', async (req: ClerkRequest, res) => {
 });
 
 // Get event statistics for a room
-eventsRouter.get('/stats/:roomId', async (req: ClerkRequest, res) => {
+eventsRouter.get('/stats/:roomId', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     // Verify user owns the room
     const room = await prisma.room.findFirst({

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Room, RoomEvent, DataPacket_Kind } from 'livekit-client';
+import { api } from '../lib/api';
 import type { DetectionEvent } from '../lib/api';
 
 interface LiveDetectionEvent {
@@ -15,12 +16,37 @@ type FeedEvent = (DetectionEvent & { isLive?: false }) | LiveDetectionEvent;
 
 interface EventFeedProps {
   room: Room | null;
+  roomId?: string | null;
   maxEvents?: number;
 }
 
-export function EventFeed({ room, maxEvents = 20 }: EventFeedProps) {
+export function EventFeed({ room, roomId = null, maxEvents = 20 }: EventFeedProps) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Load persisted event history so the feed isn't empty on open
+  useEffect(() => {
+    if (!roomId) return;
+    let cancelled = false;
+
+    api
+      .getEvents({ roomId, limit: maxEvents })
+      .then(({ events: history }) => {
+        if (cancelled) return;
+        setEvents((prev) => {
+          const live = prev.filter((e) => e.isLive);
+          const merged: FeedEvent[] = [...live, ...history.map((e) => ({ ...e, isLive: false as const }))];
+          return merged.slice(0, maxEvents);
+        });
+      })
+      .catch((err) => {
+        console.error('[EventFeed] Failed to load event history:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, maxEvents]);
 
   // Listen for live detection events via LiveKit data channel
   useEffect(() => {

@@ -14,22 +14,36 @@ import { EventFeed } from './EventFeed';
 import { DetectionSettings } from './DetectionSettings';
 import { ClipList } from './ClipList';
 import { ClipPlayer } from './ClipPlayer';
+import { PairingModal } from './PairingModal';
 import type { Clip } from '../lib/api';
+
+const DEFAULT_ROOM_NAME = 'Home';
 
 export function ViewerPage() {
   const [token, setToken] = useState<string | null>(null);
   const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Use demo endpoint for now (no auth required)
-    api.getDemoViewerToken()
-      .then((response) => {
-        setToken(response.token);
-        setLivekitUrl(response.livekitUrl);
-      })
-      .catch((err) => setError(err.message));
+  const connect = useCallback(async () => {
+    try {
+      // Every account gets one room, created invisibly on first visit
+      const { rooms } = await api.getRooms();
+      const room = rooms[0] ?? (await api.createRoom(DEFAULT_ROOM_NAME)).room;
+      setRoomId(room.id);
+
+      const response = await api.getViewerToken(room.id);
+      setToken(response.token);
+      setLivekitUrl(response.livekitUrl);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connection failed');
+    }
   }, []);
+
+  useEffect(() => {
+    connect();
+  }, [connect]);
 
   if (error) {
     return (
@@ -37,15 +51,15 @@ export function ViewerPage() {
         <div className="error-container">
           <h2>Connection Error</h2>
           <p>{error}</p>
-          <p className="hint">
-            Make sure the backend server is running on port 3001
-          </p>
+          <button className="retry-btn" onClick={connect}>
+            Try again
+          </button>
         </div>
       </div>
     );
   }
 
-  if (!token || !livekitUrl) {
+  if (!token || !livekitUrl || !roomId) {
     return (
       <div className="viewer-page">
         <div className="loading">Connecting...</div>
@@ -63,13 +77,13 @@ export function ViewerPage() {
         audio={true}
         options={viewerRoomOptions}
       >
-        <ViewerInterface />
+        <ViewerInterface roomId={roomId} />
       </LiveKitRoom>
     </div>
   );
 }
 
-function ViewerInterface() {
+function ViewerInterface({ roomId }: { roomId: string }) {
   const room = useRoomContext();
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
@@ -92,6 +106,8 @@ function ViewerInterface() {
   const [sidebarTab, setSidebarTab] = useState<'events' | 'clips' | 'settings'>('events');
   // Clip player
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
+  // Add-camera pairing modal
+  const [showPairing, setShowPairing] = useState(false);
 
   // Disable microphone on mount (start silent)
   useEffect(() => {
@@ -200,6 +216,16 @@ function ViewerInterface() {
         </div>
 
         <div className="viewer-header-controls">
+          {/* Add camera */}
+          <button
+            className="add-camera-btn"
+            onClick={() => setShowPairing(true)}
+            title="Pair a new camera phone"
+          >
+            <span className="add-camera-icon">＋</span>
+            <span className="add-camera-label">Add camera</span>
+          </button>
+
           {/* Portrait mode toggle for 9:16 feeds */}
           <button
             className={`portrait-toggle ${portraitMode ? 'active' : ''}`}
@@ -231,8 +257,16 @@ function ViewerInterface() {
         >
           {sortedTracks.length === 0 ? (
             <div className="no-cameras">
-              <p>Waiting for cameras to connect...</p>
-              <p className="hint">Open /camera on another device to start streaming</p>
+              <p>No cameras yet</p>
+              <p className="hint">
+                Turn a spare phone into a pet camera in under two minutes
+              </p>
+              <button
+                className="add-camera-btn add-camera-btn-large"
+                onClick={() => setShowPairing(true)}
+              >
+                ＋ Add your first camera
+              </button>
             </div>
           ) : (
             sortedTracks.map(({ participant, videoTrack, audioTrack }) => (
@@ -275,7 +309,7 @@ function ViewerInterface() {
               </button>
             </div>
             <div className="sidebar-content">
-              {sidebarTab === 'events' && <EventFeed room={room} />}
+              {sidebarTab === 'events' && <EventFeed room={room} roomId={roomId} />}
               {sidebarTab === 'clips' && <ClipList onPlayClip={setSelectedClip} />}
               {sidebarTab === 'settings' && <DetectionSettings room={room} />}
             </div>
@@ -285,6 +319,17 @@ function ViewerInterface() {
         {/* Clip player modal */}
         {selectedClip && (
           <ClipPlayer clip={selectedClip} onClose={() => setSelectedClip(null)} />
+        )}
+
+        {/* Add-camera pairing modal */}
+        {showPairing && (
+          <PairingModal
+            roomId={roomId}
+            onClose={() => setShowPairing(false)}
+            onPaired={() => {
+              // Camera joins the LiveKit room on its own; nothing to refresh
+            }}
+          />
         )}
       </div>
 
