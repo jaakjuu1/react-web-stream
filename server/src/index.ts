@@ -73,15 +73,16 @@ app.use(clerkMiddleware());
 
 // Health check
 app.get('/health', (req, res) => {
-  console.log('Health check hit from:', req.ip);
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Debug: log all incoming requests
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} from ${req.ip}`);
-  next();
-});
+// Request logging — opt-in via DEBUG_REQUESTS to keep production logs clean
+if (process.env.DEBUG_REQUESTS === 'true') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path} from ${req.ip}`);
+    next();
+  });
+}
 
 // Rate limits on endpoints that mint credentials or accept guessable codes
 const tokenLimiter = rateLimit({
