@@ -141,6 +141,10 @@ export function HomePage() {
         <span>Pet Portal</span>
         <span className="hp-footer-sep" aria-hidden="true" />
         <span>Secure pet monitoring</span>
+        <span className="hp-footer-sep" aria-hidden="true" />
+        <Link to="/privacy" className="hp-footer-link">Privacy</Link>
+        <span className="hp-footer-sep" aria-hidden="true" />
+        <Link to="/terms" className="hp-footer-link">Terms</Link>
       </footer>
     </div>
   );
