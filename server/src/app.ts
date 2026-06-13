@@ -4,6 +4,12 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+
+/** Header-mutation surface shared by Node's ClientRequest and test fakes. */
+interface ProxyHeaderSink {
+  setHeader(name: string, value: string): unknown;
+  removeHeader(name: string): unknown;
+}
 import { clerkMiddleware } from '@clerk/express';
 import { authRouter } from './routes/auth.js';
 import { roomsRouter } from './routes/rooms.js';
@@ -31,6 +37,25 @@ function getClerkFapiUrl(): string {
   }
 }
 
+/**
+ * Make a browser request to Clerk's Frontend API valid when forwarded
+ * through our own proxy:
+ *  - identify the proxy (Clerk-Proxy-Url) and authenticate it (Clerk-Secret-Key)
+ *  - drop `Authorization`, because Clerk's FAPI rejects requests that carry
+ *    both `Origin` (always set by the browser) and `Authorization` (added by
+ *    ClerkJS in proxy mode). In a browser context the `Origin` header wins.
+ */
+export function applyClerkProxyHeaders(
+  proxyReq: ProxyHeaderSink,
+  opts: { proxyUrl: string; secretKey?: string }
+): void {
+  proxyReq.setHeader('Clerk-Proxy-Url', opts.proxyUrl);
+  if (opts.secretKey) {
+    proxyReq.setHeader('Clerk-Secret-Key', opts.secretKey);
+  }
+  proxyReq.removeHeader('Authorization');
+}
+
 export function createApp(): express.Express {
   const app = express();
 
@@ -45,11 +70,35 @@ export function createApp(): express.Express {
 
   const clerkFapiUrl = getClerkFapiUrl();
   if (clerkFapiUrl) {
+    // Clerk's Frontend API requires a proxy to identify itself, and it
+    // rejects any request that carries BOTH an `Origin` and an
+    // `Authorization` header. Browser requests always carry `Origin`
+    // (set by the browser) and ClerkJS additionally sends `Authorization`
+    // when it's configured with a proxyUrl — so we must strip one. We keep
+    // `Origin` (this is a browser context) and drop `Authorization`.
+    const clerkProxyUrl =
+      process.env.CLERK_PROXY_URL ||
+      `${(process.env.FRONTEND_URL || '').replace(/\/$/, '')}/__clerk`;
+
+    if (!process.env.CLERK_SECRET_KEY) {
+      console.warn('Clerk FAPI proxy: CLERK_SECRET_KEY not set — proxied auth will fail');
+    }
+
     console.log('Clerk FAPI proxy enabled: /__clerk/* →', clerkFapiUrl);
     app.use('/__clerk', createProxyMiddleware({
       target: clerkFapiUrl,
       changeOrigin: true,
+      xfwd: true, // adds X-Forwarded-For / -Host / -Proto
+      cookieDomainRewrite: '', // land Clerk's __client cookie on our own domain
       pathRewrite: { '^/__clerk': '' },
+      on: {
+        proxyReq: (proxyReq) => {
+          applyClerkProxyHeaders(proxyReq, {
+            proxyUrl: clerkProxyUrl,
+            secretKey: process.env.CLERK_SECRET_KEY,
+          });
+        },
+      },
     }));
   }
 
