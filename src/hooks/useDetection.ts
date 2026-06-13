@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { Room, RoomEvent, DataPacket_Kind } from 'livekit-client';
+import { api } from '../lib/api';
 import { MotionDetector } from '../services/motionDetector';
 import { SoundDetector } from '../services/soundDetector';
 import { ClipRecorder, type StoredClip } from '../services/clipRecorder';
@@ -14,6 +15,8 @@ import {
 export interface UseDetectionOptions {
   room: Room | null;
   deviceId: string;
+  /** Backend room id; when set, events are persisted (enables push + history) */
+  roomId?: string | null;
   videoElement: HTMLVideoElement | null;
   audioStream: MediaStream | null;
   videoStream: MediaStream | null;
@@ -41,7 +44,7 @@ export interface DetectionState {
 const DETECTION_INTERVAL = 200; // ms between detection checks
 
 export function useDetection(options: UseDetectionOptions) {
-  const { room, deviceId, videoElement, audioStream, videoStream, enabled = true, onClipCaptured } = options;
+  const { room, deviceId, roomId = null, videoElement, audioStream, videoStream, enabled = true, onClipCaptured } = options;
 
   // Use ref for callback to avoid recreating services when callback changes
   const onClipCapturedRef = useRef(onClipCaptured);
@@ -120,7 +123,22 @@ export function useDetection(options: UseDetectionOptions) {
         console.error('[useDetection] Failed to send event:', err);
       }
     }
-  }, [room, videoElement]);
+
+    // Persist event server-side (triggers push notification + event history).
+    // Fire-and-forget: detection must not stall on a flaky uplink.
+    if (roomId) {
+      api
+        .createEvent({
+          roomId,
+          type: event.type,
+          deviceId: event.deviceId,
+          confidence: event.confidence,
+        })
+        .catch((err) => {
+          console.error('[useDetection] Failed to persist event:', err);
+        });
+    }
+  }, [room, roomId, videoElement]);
 
   // Handle settings received from viewer
   const handleSettingsReceived = useCallback((settings: DetectionSettings) => {

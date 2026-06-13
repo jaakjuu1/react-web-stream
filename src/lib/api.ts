@@ -1,5 +1,17 @@
+import { deviceAuthHeader } from './deviceAuth';
+
 // Use relative URL - Vite proxy handles /api in dev, same-origin in production
 const API_URL = '';
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
 
 interface SubscriptionStatus {
   status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'none';
@@ -113,18 +125,32 @@ class ApiClient {
     return tokenGetter();
   }
 
+  /**
+   * Camera phones authenticate with paired-device credentials instead of a
+   * Clerk session. When preferDevice is set and credentials exist, they win.
+   */
+  private async getAuthHeader(preferDevice = false): Promise<string | null> {
+    if (preferDevice) {
+      const deviceHeader = deviceAuthHeader();
+      if (deviceHeader) return deviceHeader;
+    }
+    const token = await this.getToken();
+    return token ? `Bearer ${token}` : null;
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    { preferDevice = false }: { preferDevice?: boolean } = {}
   ): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) || {}),
     };
 
-    const token = await this.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    const authHeader = await this.getAuthHeader(preferDevice);
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
     }
 
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -136,23 +162,10 @@ class ApiClient {
       const error = await response
         .json()
         .catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
+      throw new ApiError(error.error || 'Request failed', response.status);
     }
 
     return response.json();
-  }
-
-  // Demo tokens (no auth required)
-  async getDemoCameraToken(): Promise<TokenResponse> {
-    return this.request<TokenResponse>('/api/tokens/demo/camera', {
-      method: 'POST',
-    });
-  }
-
-  async getDemoViewerToken(): Promise<TokenResponse> {
-    return this.request<TokenResponse>('/api/tokens/demo/viewer', {
-      method: 'POST',
-    });
   }
 
   // Authenticated tokens
@@ -168,6 +181,15 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ roomId }),
     });
+  }
+
+  // Fresh camera token using stored paired-device credentials
+  async getDeviceCameraToken(): Promise<TokenResponse & { roomId: string; deviceName: string }> {
+    return this.request(
+      '/api/tokens/device',
+      { method: 'POST' },
+      { preferDevice: true }
+    );
   }
 
   // Rooms
@@ -189,6 +211,7 @@ class ApiClient {
   // Pairing
   async generatePairingCode(roomId: string): Promise<{
     code: string;
+    pairUrl: string;
     qrCode: string;
     expiresAt: string;
     roomName: string;
@@ -202,11 +225,24 @@ class ApiClient {
   async completePairing(code: string, deviceName?: string): Promise<TokenResponse & {
     success: boolean;
     roomDisplayName: string;
+    roomId: string;
+    deviceId: string;
+    deviceSecret: string;
+    deviceName: string;
   }> {
     return this.request('/api/pairing/complete', {
       method: 'POST',
       body: JSON.stringify({ code, deviceName }),
     });
+  }
+
+  async getPairingStatus(code: string): Promise<{
+    code: string;
+    used: boolean;
+    expired: boolean;
+    expiresAt: string;
+  }> {
+    return this.request(`/api/pairing/status/${code}`);
   }
 
   // Detection Events
@@ -232,10 +268,14 @@ class ApiClient {
     confidence?: number;
     thumbnailPath?: string;
   }): Promise<{ event: DetectionEvent }> {
-    return this.request<{ event: DetectionEvent }>('/api/events', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    return this.request<{ event: DetectionEvent }>(
+      '/api/events',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+      { preferDevice: true }
+    );
   }
 
   async updateEvent(
@@ -289,9 +329,9 @@ class ApiClient {
   // Clips
   async uploadClip(formData: FormData): Promise<{ clip: Clip }> {
     const headers: Record<string, string> = {};
-    const token = await this.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    const authHeader = await this.getAuthHeader(true);
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
     }
     // Don't set Content-Type - let browser set it with boundary for multipart
 
@@ -305,7 +345,7 @@ class ApiClient {
       const error = await response
         .json()
         .catch(() => ({ error: 'Upload failed' }));
-      throw new Error(error.error || 'Upload failed');
+      throw new ApiError(error.error || 'Upload failed', response.status);
     }
 
     return response.json();

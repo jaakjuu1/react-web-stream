@@ -38,3 +38,5 @@ server/prisma/dev.db-journal
 
 # AI 
 .claude/*
+server/prisma/test.db
+server/prisma/test.db-journal

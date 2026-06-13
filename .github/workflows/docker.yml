@@ -14,8 +14,38 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    name: Type-check and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      - name: Frontend type-check and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Server type-check and tests
+        working-directory: server
+        run: |
+          npm ci
+          npx prisma generate
+          npx tsc --noEmit
+          npm test
+
   build-and-push:
     name: Build app image
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,22 +58,58 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Compute image tags
+        id: image-tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${REGISTRY}/${IMAGE_NAME}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            pr_number=$(jq -r '.pull_request.number' "${GITHUB_EVENT_PATH}")
+            head_sha=$(jq -r '.pull_request.head.sha' "${GITHUB_EVENT_PATH}")
+            head_repo=$(jq -r '.pull_request.head.repo.full_name' "${GITHUB_EVENT_PATH}")
+
+            if [[ "${head_repo}" == "${GITHUB_REPOSITORY}" ]]; then
+              echo "push=true" >> "${GITHUB_OUTPUT}"
+              {
+                echo "tags<<EOF"
+                echo "${image}:pr-${pr_number}-sha-${head_sha}"
+                echo "EOF"
+              } >> "${GITHUB_OUTPUT}"
+            else
+              # Fork PRs must not get package write access or repository secrets.
+              echo "push=false" >> "${GITHUB_OUTPUT}"
+              {
+                echo "tags<<EOF"
+                echo "${image}:pr-${pr_number}-sha-${head_sha}"
+                echo "EOF"
+              } >> "${GITHUB_OUTPUT}"
+            fi
+          else
+            echo "push=true" >> "${GITHUB_OUTPUT}"
+            {
+              echo "tags<<EOF"
+              echo "${image}:latest"
+              echo "${image}:sha-${GITHUB_SHA}"
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+        if: steps.image-tags.outputs.push == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image and push on main
+      - name: Build image and push publishable refs
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          push: ${{ steps.image-tags.outputs.push == 'true' }}
+          tags: ${{ steps.image-tags.outputs.tags }}
           platforms: linux/amd64
           provenance: false
           sbom: false

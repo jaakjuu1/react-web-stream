@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   LiveKitRoom,
   useLocalParticipant,
@@ -8,7 +9,12 @@ import {
   useRoomContext,
 } from '@livekit/components-react';
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
+import {
+  getDeviceCredentials,
+  saveDeviceCredentials,
+  clearDeviceCredentials,
+} from '../lib/deviceAuth';
 import { cameraRoomOptions } from '../lib/livekit';
 import { useDetection } from '../hooks/useDetection';
 import { useClipSync } from '../hooks/useClipSync';
@@ -16,36 +22,151 @@ import { useClipSync } from '../hooks/useClipSync';
 // Type for Wake Lock API (using built-in types if available)
 type WakeLockSentinelType = WakeLockSentinel;
 
-export function CameraPage() {
-  const [token, setToken] = useState<string | null>(null);
-  const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+interface CameraSession {
+  token: string;
+  livekitUrl: string;
+  roomId: string;
+  deviceId: string;
+  deviceName: string;
+}
 
-  useEffect(() => {
-    // Use demo endpoint for now (no auth required)
-    api.getDemoCameraToken()
-      .then((response) => {
-        setToken(response.token);
-        setLivekitUrl(response.livekitUrl);
-      })
-      .catch((err) => setError(err.message));
+export function CameraPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [session, setSession] = useState<CameraSession | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [needsPairing, setNeedsPairing] = useState(false);
+  const [isPairing, setIsPairing] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const startedRef = useRef(false);
+
+  // Pair this phone using a code from the viewer's "Add camera" screen
+  const pair = useCallback(async (code: string) => {
+    setIsPairing(true);
+    setError(null);
+    try {
+      const response = await api.completePairing(code.trim().toUpperCase());
+      saveDeviceCredentials({
+        deviceId: response.deviceId,
+        deviceSecret: response.deviceSecret,
+        roomId: response.roomId,
+        roomDisplayName: response.roomDisplayName,
+        participantId: response.participantId,
+        deviceName: response.deviceName,
+      });
+      setSession({
+        token: response.token,
+        livekitUrl: response.livekitUrl,
+        roomId: response.roomId,
+        deviceId: response.deviceId,
+        deviceName: response.deviceName,
+      });
+      setNeedsPairing(false);
+    } catch (err) {
+      setNeedsPairing(true);
+      setError(err instanceof Error ? err.message : 'Pairing failed');
+    } finally {
+      setIsPairing(false);
+    }
   }, []);
 
-  if (error) {
+  // Reconnect a previously paired device with a fresh token
+  const reconnect = useCallback(async () => {
+    setError(null);
+    try {
+      const response = await api.getDeviceCameraToken();
+      setSession({
+        token: response.token,
+        livekitUrl: response.livekitUrl,
+        roomId: response.roomId,
+        deviceId: response.deviceId!,
+        deviceName: response.deviceName,
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        // Device was removed from the account — credentials are dead
+        clearDeviceCredentials();
+        setSession(null);
+        setNeedsPairing(true);
+        setError('This camera is no longer paired. Add it again from the viewer.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Connection failed');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
+    const code = searchParams.get('code');
+    if (code) {
+      // Drop the single-use code from the URL so reloads use stored credentials
+      setSearchParams({}, { replace: true });
+      pair(code);
+    } else if (getDeviceCredentials()) {
+      reconnect();
+    } else {
+      setNeedsPairing(true);
+    }
+  }, [pair, reconnect, searchParams, setSearchParams]);
+
+  if (needsPairing) {
     return (
       <div className="camera-page">
-        <div className="error-container">
-          <h2>Connection Error</h2>
-          <p>{error}</p>
-          <p className="hint">
-            Make sure the backend server is running on port 3001.
-          </p>
+        <div className="pairing-screen">
+          <h2>Set up this phone as a camera</h2>
+          <ol className="pairing-steps">
+            <li>Open Pet Portal on your computer or main phone</li>
+            <li>Go to the viewer and tap <strong>Add camera</strong></li>
+            <li>Scan the QR code with this phone, or type the code below</li>
+          </ol>
+          <form
+            className="pairing-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (codeInput.trim()) pair(codeInput);
+            }}
+          >
+            <input
+              type="text"
+              className="pairing-code-input"
+              placeholder="Pairing code"
+              value={codeInput}
+              onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={8}
+            />
+            <button
+              type="submit"
+              className="pairing-submit"
+              disabled={isPairing || codeInput.trim().length < 8}
+            >
+              {isPairing ? 'Pairing…' : 'Pair camera'}
+            </button>
+          </form>
+          {error && <p className="pairing-error">{error}</p>}
         </div>
       </div>
     );
   }
 
-  if (!token || !livekitUrl) {
+  if (error && !session) {
+    return (
+      <div className="camera-page">
+        <div className="error-container">
+          <h2>Connection Error</h2>
+          <p>{error}</p>
+          <button className="retry-btn" onClick={reconnect}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
     return (
       <div className="camera-page">
         <div className="loading">Connecting...</div>
@@ -56,20 +177,27 @@ export function CameraPage() {
   return (
     <div className="camera-page">
       <LiveKitRoom
-        serverUrl={livekitUrl}
-        token={token}
+        key={session.token}
+        serverUrl={session.livekitUrl}
+        token={session.token}
         connect={true}
         video={true}
         audio={true}
         options={cameraRoomOptions}
+        onDisconnected={reconnect}
       >
-        <CameraInterface />
+        <CameraInterface roomId={session.roomId} deviceId={session.deviceId} />
       </LiveKitRoom>
     </div>
   );
 }
 
-function CameraInterface() {
+interface CameraInterfaceProps {
+  roomId: string;
+  deviceId: string;
+}
+
+function CameraInterface({ roomId, deviceId }: CameraInterfaceProps) {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const [connectionState, setConnectionState] = useState<ConnectionState>(
@@ -137,9 +265,9 @@ function CameraInterface() {
   const videoStream = localParticipant?.getTrackPublication(Track.Source.Camera)?.track?.mediaStream || null;
   const audioStream = localParticipant?.getTrackPublication(Track.Source.Microphone)?.track?.mediaStream || null;
 
-  // Clip sync hook
+  // Clip sync hook — uses the backend room id so uploads land in the right room
   const clipSync = useClipSync({
-    roomId: room?.name || null,
+    roomId,
     enabled: isConnected,
   });
 
@@ -163,10 +291,12 @@ function CameraInterface() {
     []
   );
 
-  // Detection hook
+  // Detection hook — deviceId is the backend device id so persisted
+  // events and clips stay linked to this paired camera
   const detection = useDetection({
     room,
-    deviceId: localParticipant?.identity || '',
+    deviceId,
+    roomId,
     videoElement: videoElementRef.current,
     audioStream,
     videoStream,

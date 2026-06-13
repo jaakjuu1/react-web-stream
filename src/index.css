@@ -3808,3 +3808,396 @@ body {
 .back-link:hover {
   color: var(--text-primary);
 }
+
+/* ============================================
+   Pairing — camera page setup screen
+   ============================================ */
+
+.pairing-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1.5rem;
+  max-width: 480px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.pairing-screen h2 {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+}
+
+.pairing-steps {
+  text-align: left;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  margin: 0 0 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.pairing-steps strong {
+  color: var(--accent);
+}
+
+.pairing-form {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 360px;
+}
+
+.pairing-code-input {
+  flex: 1;
+  padding: 0.875rem 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.125rem;
+  letter-spacing: 0.15em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.pairing-code-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.pairing-submit {
+  padding: 0.875rem 1.25rem;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  color: var(--bg-void);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.pairing-submit:hover:not(:disabled) {
+  background: var(--accent-dim);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.pairing-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pairing-error {
+  margin-top: 1rem;
+  color: var(--live);
+  font-size: 0.875rem;
+}
+
+.retry-btn,
+.pairing-action-btn {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--accent);
+  border: none;
+  border-radius: 100px;
+  color: var(--bg-void);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-btn:hover,
+.pairing-action-btn:hover {
+  background: var(--accent-dim);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+/* ============================================
+   Pairing — viewer "Add camera" modal
+   ============================================ */
+
+.add-camera-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 100px;
+  color: var(--bg-void);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.add-camera-btn:hover {
+  background: var(--accent-dim);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.add-camera-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.add-camera-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.add-camera-btn-large {
+  margin: 1.25rem auto 0;
+  padding: 0.875rem 1.75rem;
+  font-size: 0.875rem;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.pairing-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  max-width: 420px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 0 1.5rem 1.5rem;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pairing-modal .pairing-steps {
+  font-size: 0.875rem;
+}
+
+.pairing-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 0 1rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+}
+
+.pairing-modal-header h3 {
+  font-size: 1.125rem;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.pairing-qr-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border-radius: var(--radius-md, 8px);
+  padding: 0.75rem;
+  margin: 0 auto;
+  width: fit-content;
+  min-width: 240px;
+  min-height: 240px;
+}
+
+.pairing-qr {
+  display: block;
+  width: 240px;
+  height: 240px;
+}
+
+.pairing-expired {
+  text-align: center;
+  color: var(--bg-void);
+  font-weight: 600;
+}
+
+.pairing-manual {
+  margin-top: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  text-align: center;
+  word-break: break-word;
+}
+
+.pairing-manual strong {
+  color: var(--text-primary);
+}
+
+.pairing-code {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent) !important;
+  letter-spacing: 0.1em;
+}
+
+.pairing-countdown {
+  margin-top: 0.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pairing-success {
+  text-align: center;
+  padding: 1.5rem 0;
+  color: var(--text-primary);
+}
+
+.pairing-success-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.pairing-modal-error {
+  text-align: center;
+  padding: 1rem 0;
+  color: var(--live);
+}
+
+/* ============================================
+   Legal pages (privacy / terms)
+   ============================================ */
+
+.legal-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.legal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.legal-home-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.legal-home-link:hover {
+  text-decoration: underline;
+}
+
+.legal-content {
+  flex: 1;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.legal-content h1 {
+  color: var(--text-primary);
+  font-size: 1.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.legal-updated {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  margin-bottom: 2rem;
+}
+
+.legal-content h2 {
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  margin: 2rem 0 0.75rem;
+}
+
+.legal-content p {
+  margin-bottom: 1rem;
+}
+
+.legal-content ul {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.legal-content li {
+  margin-bottom: 0.625rem;
+}
+
+.legal-content strong {
+  color: var(--text-primary);
+}
+
+.legal-footer {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.legal-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.legal-footer a:hover {
+  color: var(--accent);
+}
+
+.hp-footer-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.hp-footer-link:hover {
+  color: var(--accent);
+}
+
+.legal-consent {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.legal-consent a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+.legal-consent a:hover {
+  color: var(--accent);
+}

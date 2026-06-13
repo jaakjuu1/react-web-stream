@@ -13,6 +13,16 @@ if (!PUBLISHABLE_KEY) {
 // CNAME/SSL issues with clerk.<subdomain> auto-detection
 const proxyUrl = import.meta.env.PROD ? '/__clerk' : undefined;
 
+// Register the service worker eagerly (not just when push is enabled) so
+// the app is installable and push setup is a permission prompt away
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.error('[SW] Registration failed:', err);
+    });
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ClerkProvider

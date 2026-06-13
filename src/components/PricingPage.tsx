@@ -116,6 +116,12 @@ export function PricingPage() {
                   : 'Sign Up & Subscribe'}
             </button>
           )}
+
+          <p className="legal-consent">
+            By subscribing you agree to the{' '}
+            <Link to="/terms">Terms of Service</Link> and{' '}
+            <Link to="/privacy">Privacy Policy</Link>.
+          </p>
         </div>
 
         <Link to="/" className="back-link">

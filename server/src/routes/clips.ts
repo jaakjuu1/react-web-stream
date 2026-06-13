@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
 import { prisma } from '../lib/prisma.js';
 import { clerkAuth, type ClerkRequest } from '../middleware/clerk.js';
+import { clerkOrDeviceAuth, type DeviceRequest } from '../middleware/deviceAuth.js';
 import {
   uploadClip,
   deleteClip,
@@ -28,8 +29,8 @@ const upload = multer({
   },
 });
 
-// All routes require authentication
-clipsRouter.use(clerkAuth());
+// Upload accepts paired-device credentials (cameras have no Clerk session);
+// all other routes attach clerkAuth() individually below.
 
 const uploadClipSchema = z.object({
   roomId: z.string(),
@@ -40,8 +41,8 @@ const uploadClipSchema = z.object({
   recordedAt: z.string(),
 });
 
-// POST /api/clips - Upload a new clip
-clipsRouter.post('/', upload.single('video'), async (req: ClerkRequest, res) => {
+// POST /api/clips - Upload a new clip (Clerk session or paired-device credentials)
+clipsRouter.post('/', clerkOrDeviceAuth(), upload.single('video'), async (req: DeviceRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const parsed = uploadClipSchema.parse(req.body);
@@ -49,6 +50,11 @@ clipsRouter.post('/', upload.single('video'), async (req: ClerkRequest, res) => 
 
     if (!req.file) {
       return res.status(400).json({ error: 'No video file provided' });
+    }
+
+    // Paired devices may only upload clips for their own room
+    if (req.device && roomId !== req.device.roomId) {
+      return res.status(403).json({ error: 'Device not authorized for this room' });
     }
 
     // Verify room ownership
@@ -105,7 +111,7 @@ const listClipsSchema = z.object({
 });
 
 // GET /api/clips - List clips for user's rooms
-clipsRouter.get('/', async (req: ClerkRequest, res) => {
+clipsRouter.get('/', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const parsed = listClipsSchema.parse(req.query);
@@ -150,7 +156,7 @@ clipsRouter.get('/', async (req: ClerkRequest, res) => {
 });
 
 // GET /api/clips/:id - Get single clip metadata
-clipsRouter.get('/:id', async (req: ClerkRequest, res) => {
+clipsRouter.get('/:id', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const clip = await prisma.clip.findFirst({
       where: { id: req.params.id, userId: req.userId! },
@@ -171,7 +177,7 @@ clipsRouter.get('/:id', async (req: ClerkRequest, res) => {
 });
 
 // GET /api/clips/:id/url - Get playback URL (presigned R2 URL or local streaming URL)
-clipsRouter.get('/:id/url', async (req: ClerkRequest, res) => {
+clipsRouter.get('/:id/url', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const clip = await prisma.clip.findFirst({
       where: { id: req.params.id, userId: req.userId! },
@@ -195,7 +201,7 @@ clipsRouter.get('/:id/url', async (req: ClerkRequest, res) => {
 });
 
 // GET /api/clips/file/:path - Stream clip video file (local storage only)
-clipsRouter.get('/file/{*path}', async (req: ClerkRequest, res) => {
+clipsRouter.get('/file/{*path}', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     if (isR2()) {
       return res.status(400).json({ error: 'Use /api/clips/:id/url for R2 storage' });
@@ -233,7 +239,7 @@ clipsRouter.get('/file/{*path}', async (req: ClerkRequest, res) => {
 });
 
 // DELETE /api/clips/:id - Delete a clip
-clipsRouter.delete('/:id', async (req: ClerkRequest, res) => {
+clipsRouter.delete('/:id', clerkAuth(), async (req: ClerkRequest, res: Response) => {
   try {
     const clip = await prisma.clip.findFirst({
       where: { id: req.params.id, userId: req.userId! },
