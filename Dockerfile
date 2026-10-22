@@ -1,7 +1,7 @@
 # ============================================
 # Stage 1: Build Frontend
 # ============================================
-FROM node:20-alpine AS frontend-builder
+FROM node:22.23.4-alpine AS frontend-builder
 
 WORKDIR /app
 
@@ -28,7 +28,7 @@ RUN npm run build
 # ============================================
 # Stage 2: Build Backend
 # ============================================
-FROM node:20-alpine AS backend-builder
+FROM node:22.23.4-alpine AS backend-builder
 
 WORKDIR /app/server
 
@@ -52,7 +52,7 @@ RUN npm run build
 # ============================================
 # Stage 3: Production Image
 # ============================================
-FROM node:20-alpine AS production
+FROM node:22.23.4-alpine AS production
 
 WORKDIR /app
 
